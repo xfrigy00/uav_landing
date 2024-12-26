@@ -1,6 +1,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
-#include <memory>  // Include this for std::make_shared
+#include <memory>   // Include this for std::make_shared
 
 class ImageSubscriber : public rclcpp::Node
 {

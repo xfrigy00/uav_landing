@@ -11,17 +11,15 @@ find_package(rclcpp REQUIRED)         # ROS2 C++ client library
 find_package(sensor_msgs REQUIRED)    # ROS2 message types for sensor data
 find_package(cv_bridge REQUIRED)      # Bridge between ROS2 and OpenCV
 find_package(OpenCV REQUIRED)         # OpenCV for image processing
+find_package(geometry_msgs REQUIRED)  # ROS2 message of type geometry data
 
 # Image subscriber node (kept from your original CMakeLists.txt)
 add_executable(image_subscriber src/image_subscriber.cpp)
 ament_target_dependencies(image_subscriber rclcpp sensor_msgs)
 
-# Aruco detector node
-add_executable(aruco_detector src/aruco_detector.cpp)
-ament_target_dependencies(aruco_detector rclcpp sensor_msgs cv_bridge OpenCV)
-
-# Explicitly link OpenCV libraries (if needed, usually ROS2 handles this)
-target_link_libraries(aruco_detector ${OpenCV_LIBS})
+# Regulator node
+add_executable(regulator_node src/regulator_node.cpp)
+ament_target_dependencies(regulator_node rclcpp geometry_msgs)
 
 # If building tests, set up linting and testing dependencies
 if(BUILD_TESTING)
@@ -39,7 +37,7 @@ endif()
 # Install both nodes
 install(TARGETS
   image_subscriber
-  aruco_detector
+  regulator_node
   DESTINATION lib/${PROJECT_NAME})
 
 # Install launch files (if any)
