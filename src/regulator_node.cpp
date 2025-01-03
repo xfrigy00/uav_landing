@@ -1,3 +1,9 @@
+/*
+&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+Note: Uprava kodu bude sucastou diplomovej prace
+&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+*/
+
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
@@ -30,7 +36,7 @@ private:
         double y = msg->pose.position.y;
 
         // P regulator
-        double velocity_x = -Kp * y; // TO EDIT transforming ... NEW MIDDLE POINT OF INTEREST
+        double velocity_x = -Kp * y;	// TO EDIT ... Uprava kodu bude sucastou diplomovej prace
         double velocity_y = -Kp * x;
 
         // Create a Twist message
@@ -38,7 +44,7 @@ private:
 
         // Velocity saturation limit
         double vel_saturation = 2.0;
-        double vel_default = 0.05;  // Velocity default
+        double vel_default = 0.05;	// Velocity default
 
         // Apply saturation for velocity_x
         velocity_x = (velocity_x > vel_saturation) ? vel_default : velocity_x;
@@ -51,11 +57,11 @@ private:
         // Fill and publish a Twist message
         twist_msg.linear.x = velocity_x; 
         twist_msg.linear.y = velocity_y;
-        double z_landing_vel = -0.15;    // Landing speed
-        double z_landing_vel_stop = 0.0;    // Landing speed
-        double landing_high_limit = 1.0;    // Stop decreasing when this level is reached
-        twist_msg.linear.z = (msg->pose.position.z > landing_high_limit) ? z_landing_vel : z_landing_vel_stop;  // No vertical movement
-        twist_msg.angular.x = 0.0;  // No angular movement
+        double z_landing_vel = -0.15;	// Landing speed
+        double z_landing_vel_stop = 0.0;	// Landing speed
+        double landing_high_limit = 1.0;	// Stop decreasing when this level is reached
+        twist_msg.linear.z = (msg->pose.position.z > landing_high_limit) ? z_landing_vel : z_landing_vel_stop;	// No vertical movement
+        twist_msg.angular.x = 0.0;	// No angular movement
         twist_msg.angular.y = 0.0;
         twist_msg.angular.z = 0.0;
 

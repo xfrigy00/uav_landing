@@ -6,5 +6,5 @@
 * image_subscriber
 * aruco_detector
 
-**Run with**: `ros2 launch uav_landing uav_landing_launch.py`  
+**Run with**: `cd ~/uas_simulation/workspace/src/vanaheim/uav_landing/start` and `./start`   
 **Stop with**: `tmux kill-server`
