@@ -13,10 +13,6 @@ find_package(cv_bridge REQUIRED)      # Bridge between ROS2 and OpenCV
 find_package(OpenCV REQUIRED)         # OpenCV for image processing
 find_package(geometry_msgs REQUIRED)  # ROS2 message of type geometry data
 
-# Image subscriber node (kept from your original CMakeLists.txt)
-add_executable(image_subscriber src/image_subscriber.cpp)
-ament_target_dependencies(image_subscriber rclcpp sensor_msgs)
-
 # Regulator node
 add_executable(regulator_node src/regulator_node.cpp)
 ament_target_dependencies(regulator_node rclcpp geometry_msgs)
@@ -36,7 +32,6 @@ endif()
 
 # Install both nodes
 install(TARGETS
-  image_subscriber
   regulator_node
   DESTINATION lib/${PROJECT_NAME})
 
