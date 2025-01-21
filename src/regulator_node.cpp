@@ -39,8 +39,10 @@ class regulator_node : public rclcpp::Node
             double y = msg->pose.position.y;
 
             // P regulator
-            double velocity_x = -Kp * y;	// TO EDIT ... Uprava kodu bude sucastou diplomovej prace
-            double velocity_y = -Kp * x;
+            double velocity_x = Kp * y;
+            double velocity_y = Kp * x;
+            velocity_x = velocity_x * (-1);     // X of a world coordinate system and y of an image coordinate system are oppositely oriented
+            velocity_y = velocity_y * (-1);     // Y of a world coordinate system and x of an image coordinate system are oppositely oriented
 
             // Create a Twist message
             auto twist_msg = geometry_msgs::msg::Twist();
@@ -63,7 +65,8 @@ class regulator_node : public rclcpp::Node
             double z_landing_vel = -0.15;		// Landing speed
             double z_landing_vel_stop = 0.0; 	// Landing speed
             double landing_high_limit = 1.0;	// Stop decreasing when this level is reached
-            twist_msg.linear.z = (msg->pose.position.z > landing_high_limit) ? z_landing_vel : z_landing_vel_stop;	// No vertical movement
+            double horizontal_thrshld = 0.03;   // horizontal_threshold [m] - Horizontal distance from center of marker in one axe
+            twist_msg.linear.z = (msg->pose.position.z > landing_high_limit && x < horizontal_thrshld && y < horizontal_thrshld) ? z_landing_vel : z_landing_vel_stop;	// No vertical movement
             
             // No angular movement
             twist_msg.angular.x = 0.0;		
