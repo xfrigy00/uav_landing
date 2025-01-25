@@ -37,7 +37,7 @@ class regulator_node : public rclcpp::Node
             // Set a proportional gain
             Kp = 0.5;
 
-            RCLCPP_INFO(this->get_logger(), "Regulator node has started.");
+            RCLCPP_INFO(this->get_logger(), "Regulator node has started."); // Informing about starting a node
         }
 
     private:
@@ -45,10 +45,10 @@ class regulator_node : public rclcpp::Node
         void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) 
         {
             /*
-            Postup:
-            Nacitanie vysky
-            Podla vysky nacitanie dat x a y zo spravy podla msg->header.frame_id
-            Regulacia odchylky horizontalnej polohy
+            Procedure:
+            Height loading
+            According to height - read x and y data from the message according to msg->header.frame_id
+            Horizontal position deviation control
             */
 
             // Load height
@@ -58,20 +58,64 @@ class regulator_node : public rclcpp::Node
             double x = 0;
             double y = 0;
 
-            // Decide which state is active
-            // If more than 3 m, between 3 and 1.5 m or below 1.5 m
-            // Load x and y positions from the PoseStamped message
+            // Marker sizes [m]
+            double big_marker_s = 0.78;
+            double middle_marker_s = 0.58;
+            double small_marker_s = 0.15;
+
+            /*
+            Marker layout - all markers are squares
+            An image ↓↓↓ is for reference only
+
+            ############
+            ############&&&
+            ############&&&
+            ############@@@@@@
+            ############@@@@@@
+            ############@@@@@@
+            ############@@@@@@
+
+            # - Biggest marker
+            @ - Middle-sized marker
+            & - Smallest marker
+            */
+
+            double horizontal_dev_x = 0;        // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
+            double horizontal_dev_y = 0;        // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
             int level_2 = 3;        // 3 m height 
             double level_1 = 1.5;   // 1.5 m height
+
+            // Determining desired distance from marker in axes x and y
+            if(z > level_2)                         // Detecting the biggest marker but descending to middle-sized marker
+            {
+                horizontal_dev_x = big_marker_s / 2 + middle_marker_s / 2;
+                horizontal_dev_y = big_marker_s / 2 - middle_marker_s / 2;
+            }
+            else if (z <= level_2 && z >= level_1)  // Detecting middle-sized marker but descending smallest
+            {
+                horizontal_dev_x = - middle_marker_s / 2 + small_marker_s / 2;
+                horizontal_dev_y = - middle_marker_s / 2 - small_marker_s / 2;
+            }
+            else                                    // Detecting smallest marker and descending to smallest marker
+            {
+                horizontal_dev_x = 0;
+                horizontal_dev_y = 0;
+            }
+
+            // Decide which state is active
+            // Camera coordinates: x: →, y: ↓
+            // If more than 3 m, between 3 and 1.5 m or below 1.5 m
+            // Load x and y positions from the PoseStamped message
             if((z > level_2 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_2") || (z <= level_2 && z >= level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_1") || (z < level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_0"))
             {
-                x = msg->pose.position.x;
-                y = msg->pose.position.y;
+                x = msg->pose.position.x + horizontal_dev_x;
+                y = msg->pose.position.y + horizontal_dev_y;
             }
 
             // P regulator
-            double velocity_x = Kp * y;
-            double velocity_y = Kp * x;
+            // World coordinates: x: ↑, y: ←
+            double velocity_x = Kp * y;     // Velocity in world x coordinate
+            double velocity_y = Kp * x;     // Velocity in world y coordinate
             velocity_x = velocity_x * (-1); // X of a world coordinate system and y of an image coordinate system are oppositely oriented
             velocity_y = velocity_y * (-1); // Y of a world coordinate system and x of an image coordinate system are oppositely oriented
 
@@ -95,19 +139,23 @@ class regulator_node : public rclcpp::Node
             twist_msg.linear.y = velocity_y;
             double z_landing_vel = -0.15;		// Landing speed
             double z_landing_vel_stop = 0.0; 	// Landing speed
-            double landing_high_limit = 0.3;	// Stop decreasing when this level is reached
-            double horizontal_thrshld = 0.03;   // horizontal_threshold [m] - Horizontal distance from center of marker in one axe
+            double landing_high_limit = 0.3;	// Stop decreasing when this level is reached [m]
+            double horizontal_thrshld = 0.03;   // horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
 
             // If height in z is more than z_landing_vel_stop height &&
             // If x or y are in interval (horizontal_thrshld; - horizontal_thrshld), then vertical movement is allowed
-            twist_msg.linear.z = (msg->pose.position.z > landing_high_limit && 
-            x < horizontal_thrshld && x > (-1) * horizontal_thrshld && y < horizontal_thrshld && y > (-1) * horizontal_thrshld) ? z_landing_vel : z_landing_vel_stop;
+            double no_inp_bord = 0.05;          // Border for interval without input [m]
+            if ((z < level_2 + no_inp_bord && z > level_2 - no_inp_bord) || (z < level_1 + no_inp_bord && z > level_1 - no_inp_bord))   // Avoiding two inputs and just descending without input
+                twist_msg.linear.z = z_landing_vel;
+            else
+                twist_msg.linear.z = (msg->pose.position.z > landing_high_limit && x < horizontal_thrshld && x > - horizontal_thrshld && y < horizontal_thrshld && y > - horizontal_thrshld) ? z_landing_vel : z_landing_vel_stop;
             
             // No angular movement
             twist_msg.angular.x = 0.0;		
             twist_msg.angular.y = 0.0;
             twist_msg.angular.z = 0.0;
 
+            // Publish only data from used frame
             if((z > level_2 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_2") || (z <= level_2 && z >= level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_1") || (z < level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_0"))
             {
                 twist_publisher_->publish(twist_msg);
@@ -129,8 +177,8 @@ class regulator_node : public rclcpp::Node
 int main(int argc, char **argv) 
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<regulator_node>();     // Better reading
-    rclcpp::spin(node);                                 // Better reading, spin(node);  
+    auto node = std::make_shared<regulator_node>();     // For better reading
+    rclcpp::spin(node);                                 // Better reading of spin(node) than spin(std::make_shared<regulator_node>())
     rclcpp::shutdown();
     return 0;
 }
