@@ -1,9 +1,3 @@
-/*
-&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-Note: Uprava kodu bude sucastou diplomovej prace
-&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-*/
-
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
@@ -37,6 +31,14 @@ class regulator_node : public rclcpp::Node
             // Set a proportional gain
             Kp = 0.5;
 
+            // Set initialization for variables used for slow speeding up
+            indicator_vel_x = 0;    // indicator_velocity_x == 0 - slow speeding up is needed || 1 - slow speeding up is in progress || 2 - slow speeding up is done
+            indicator_vel_y = 0;
+            desired_vel_x = 0;      // Desired velocity
+            desired_vel_y = 0;
+            actual_vel_x = 0;       // Actual velocity  
+            actual_vel_y = 0;
+
             RCLCPP_INFO(this->get_logger(), "Regulator node has started."); // Informing about starting a node
         }
 
@@ -67,23 +69,23 @@ class regulator_node : public rclcpp::Node
             Marker layout - all markers are squares
             An image ↓↓↓ is for reference only
 
-            ############
-            ############&&&
-            ############&&&
-            ############@@@@@@
-            ############@@@@@@
-            ############@@@@@@
-            ############@@@@@@
+            000000000000
+            000000000000222
+            000000000000222
+            00000000000011111
+            00000000000011111
+            00000000000011111
+            00000000000011111
 
-            # - Biggest marker
-            @ - Middle-sized marker
-            & - Smallest marker
+            0 - Biggest marker
+            1 - Middle-sized marker
+            2 - Smallest marker
             */
 
-            double horizontal_dev_x = 0;        // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
-            double horizontal_dev_y = 0;        // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
-            int level_2 = 3;        // 3 m height 
-            double level_1 = 1.5;   // 1.5 m height
+            double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
+            double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
+            int level_2 = 3;                        // 3 m height for landing
+            double level_1 = 1.5;                   // 1.5 m height for landing
 
             // Determining desired distance from marker in axes x and y
             if(z > level_2)                         // Detecting the biggest marker but descending to middle-sized marker
@@ -114,25 +116,74 @@ class regulator_node : public rclcpp::Node
 
             // P regulator
             // World coordinates: x: ↑, y: ←
-            double velocity_x = Kp * y;     // Velocity in world x coordinate
-            double velocity_y = Kp * x;     // Velocity in world y coordinate
-            velocity_x = velocity_x * (-1); // X of a world coordinate system and y of an image coordinate system are oppositely oriented
-            velocity_y = velocity_y * (-1); // Y of a world coordinate system and x of an image coordinate system are oppositely oriented
+            double velocity_x = Kp * y;                 // Velocity in world x coordinate
+            double velocity_y = Kp * x;                 // Velocity in world y coordinate
+            velocity_x = velocity_x * (-1);             // X of a world coordinate system and y of an image coordinate system are oppositely oriented
+            velocity_y = velocity_y * (-1);             // Y of a world coordinate system and x of an image coordinate system are oppositely oriented
+
+            // Velocity saturation limit
+            double vel_saturation = 1.0;                // Velocity saturation [m]
+
+            // Slow speeding up after start of the regulator_node
+            double speed_inc_dec = 0.002;               // speed adding by speed_inc_dec m / s
+            if(indicator_vel_x == 0 && velocity_x != 0) // indicator_vel_x == 0 - speeding up slowly is needed
+            {
+                indicator_vel_x = 1;                    // indicator_vel_x == 1 - slow speeding up is in progress
+
+                // Setting desired velocity from saturation velocity level, velocity can be also negative and so saturation level need to be also negative
+                if(velocity_x <= 0 && velocity_x < - vel_saturation)    
+                    desired_vel_x = - vel_saturation;                   
+                else if (velocity_x > 0 && velocity_x > vel_saturation)
+                    desired_vel_x = vel_saturation;
+            }
+            
+            if(indicator_vel_x == 1)                    // indicator_vel_x == 1 - slow speeding up is in progress
+            {
+                // Increasing or decreasing actual velocity based on desired velocity
+                if(desired_vel_x != actual_vel_x)
+                    actual_vel_x = (desired_vel_x > actual_vel_x) ? actual_vel_x + speed_inc_dec : actual_vel_x - speed_inc_dec;
+
+                velocity_x = actual_vel_x;
+
+                // Checking if desired velocity was reached
+                if((desired_vel_x >= 0 && velocity_x >= desired_vel_x) || (desired_vel_x <= 0 && velocity_x <= desired_vel_x))
+                    indicator_vel_x = 2;                // indicator_vel_x == 2 - slow speeding up is done
+            }
+
+            if(indicator_vel_y == 0 && velocity_y != 0) // indicator_vel_y == 0 - speeding up slowly is needed
+            {
+                indicator_vel_y = 1;                    // indicator_vel_y == 1 - slow speeding up is in progress
+                
+                // Setting desired velocity from saturation velocity level, velocity can be also negative and so saturation level need to be also negative
+                if(velocity_y <= 0 && velocity_y < - vel_saturation)
+                    desired_vel_y = - vel_saturation;
+                else if (velocity_y > 0 && velocity_y > vel_saturation)
+                    desired_vel_y = vel_saturation;
+            }
+            
+            if(indicator_vel_y == 1)                    // indicator_vel_y == 1 - slow speeding up is in progress
+            {
+                // Increasing or decreasing actual velocity based on desired velocity
+                if(desired_vel_y != actual_vel_y)
+                    actual_vel_y = (desired_vel_y > actual_vel_y) ? actual_vel_y + speed_inc_dec : actual_vel_y - speed_inc_dec;
+
+                velocity_y = actual_vel_y;
+
+                // Checking if desired velocity was reached
+                if((desired_vel_y >= 0 && velocity_y >= desired_vel_y) || (desired_vel_y <= 0 && velocity_y <= desired_vel_y))
+                    indicator_vel_y = 2;                // indicator_vel_y == 2 - slow speeding up is done
+            }
 
             // Create a Twist message
             auto twist_msg = geometry_msgs::msg::Twist();
 
-            // Velocity saturation limit
-            double vel_saturation = 2.0;
-            double vel_default = 0.05;  // Velocity default
-
             // Apply saturation for velocity_x
-            velocity_x = (velocity_x > vel_saturation) ? vel_default : velocity_x;
-            velocity_x  = (velocity_x < -vel_saturation) ? -vel_default : velocity_x;
+            velocity_x = (velocity_x > vel_saturation) ? vel_saturation : velocity_x;
+            velocity_x  = (velocity_x < -vel_saturation) ? -vel_saturation : velocity_x;
 
             // Apply saturation for velocity_y
-            velocity_y = (velocity_y > vel_saturation) ? vel_default : velocity_y;
-            velocity_y = (velocity_y < -vel_saturation) ? -vel_default : velocity_y;
+            velocity_y = (velocity_y > vel_saturation) ? vel_saturation : velocity_y;
+            velocity_y = (velocity_y < -vel_saturation) ? -vel_saturation : velocity_y;
 
             // Fill and publish a Twist message
             twist_msg.linear.x = velocity_x; 
@@ -166,8 +217,14 @@ class regulator_node : public rclcpp::Node
             }
         }
 
-        // Member variables for proportional gain, subscriber and publisher 
+        // Member variables for proportional gain, slow speeding up, subscribers and publisher 
         double Kp;
+        double indicator_vel_x;
+        double indicator_vel_y;
+        double actual_vel_x;
+        double actual_vel_y;
+        double desired_vel_x;
+        double desired_vel_y;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_0;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_1;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_2;
