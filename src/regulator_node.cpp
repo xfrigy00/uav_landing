@@ -2,6 +2,22 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 
+// Text
+#define Green "\033[1;32m"      // Green
+#define Black_b "\033[1;30m"    // Black bold
+#define Cyan_b "\033[1;36m"     // Cyan bold
+#define Blue_b "\033[1;34m"     // Blue bold
+#define White_b "\033[1;37m"    // White bold
+#define Yellow_b_i "\033[1;93m" // Yellow bold, hgh intensity
+
+// Background
+#define Black_back "\033[40m"   // Black
+#define White_back "\033[47m"   // White
+#define Blue_back "\033[44m"    // Blue
+
+// Formatting off
+#define Reset "\033[0m"         
+
 class regulator_node : public rclcpp::Node 
 {
     public:
@@ -39,7 +55,12 @@ class regulator_node : public rclcpp::Node
             actual_vel_x = 0;       // Actual velocity  
             actual_vel_y = 0;
 
-            RCLCPP_INFO(this->get_logger(), "Regulator node has started."); // Informing about starting a node
+            // Setting variable for indicating end of landing
+            landing_ind = 2;    /*  2 - landig was started but position of the drone is less than landing_high_limit, 
+                                    0 - FALSE,landing was started but position of the drone is more than landing_high_limit, 
+                                    1 - TRUE, landing was started previous state was 0 and now position of the drone is more than landing_high_limit*/
+
+            RCLCPP_INFO(this->get_logger(), Cyan_b "[INFO] Regulator node has started." Reset); // Informing about starting a node
         }
 
     private:
@@ -65,6 +86,18 @@ class regulator_node : public rclcpp::Node
             double middle_marker_s = 0.58;
             double small_marker_s = 0.15;
 
+            // Marker positions [m]
+            double big_marker_pos_x = big_marker_s / 2;
+            double big_marker_pos_y = big_marker_s / 2;
+            double middle_marker_pos_x = big_marker_s + middle_marker_s / 2;
+            double middle_marker_pos_y = big_marker_s - middle_marker_s / 2;
+            double small_marker_pos_x = big_marker_s + small_marker_s / 2;
+            double small_marker_pos_y = big_marker_s - middle_marker_s - small_marker_s / 2;
+
+            // From sizes of landing markers, the landing point is (big_marker_s + middle_marker_s) / 2 [m] for x axe and big_marker_s / 2 [m] for y axe
+            double middle_x = (big_marker_s + middle_marker_s) / 2;
+            double middle_y = big_marker_s / 2;
+
             /*
             Marker layout - all markers are squares
             An image ↓↓↓ is for reference only
@@ -72,11 +105,12 @@ class regulator_node : public rclcpp::Node
             000000000000
             000000000000222
             000000000000222
-            00000000000011111
+            00000000X00011111
             00000000000011111
             00000000000011111
             00000000000011111
 
+            X - Landing point - middle of the object of markers
             0 - Biggest marker
             1 - Middle-sized marker
             2 - Smallest marker
@@ -84,24 +118,25 @@ class regulator_node : public rclcpp::Node
 
             double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
             double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
-            int level_2 = 3;                        // 3 m height for landing
+            double level_2 = 3;                     // 3 m height for landing
             double level_1 = 1.5;                   // 1.5 m height for landing
 
             // Determining desired distance from marker in axes x and y
+            // Because of velocity_x = velocity_x * (-1); below also mutiplying "* (-1)" needs to be here
             if(z > level_2)                         // Detecting the biggest marker but descending to middle-sized marker
             {
-                horizontal_dev_x = big_marker_s / 2 + middle_marker_s / 2;
-                horizontal_dev_y = big_marker_s / 2 - middle_marker_s / 2;
+                horizontal_dev_x = (big_marker_pos_x - middle_x) * (-1);
+                horizontal_dev_y = (big_marker_pos_y - middle_y) * (-1);
             }
             else if (z <= level_2 && z >= level_1)  // Detecting middle-sized marker but descending smallest
             {
-                horizontal_dev_x = - middle_marker_s / 2 + small_marker_s / 2;
-                horizontal_dev_y = - middle_marker_s / 2 - small_marker_s / 2;
+                horizontal_dev_x = (middle_marker_pos_x - middle_x) * (-1);
+                horizontal_dev_y = (middle_marker_pos_y - middle_y) * (-1);
             }
             else                                    // Detecting smallest marker and descending to smallest marker
             {
-                horizontal_dev_x = 0;
-                horizontal_dev_y = 0;
+                horizontal_dev_x = (small_marker_pos_x - middle_x) * (-1);
+                horizontal_dev_y = (small_marker_pos_y - middle_y) * (-1);
             }
 
             // Decide which state is active
@@ -147,7 +182,12 @@ class regulator_node : public rclcpp::Node
 
                 // Checking if desired velocity was reached
                 if((desired_vel_x >= 0 && velocity_x >= desired_vel_x) || (desired_vel_x <= 0 && velocity_x <= desired_vel_x))
+                {
                     indicator_vel_x = 2;                // indicator_vel_x == 2 - slow speeding up is done
+
+                    for(int i = 0; i < 5; i++)          // Informing when ramp in x axe is done
+                        RCLCPP_INFO(this->get_logger(), Black_back White_b "[INFO] Ramp y DONE." Reset);
+                }
             }
 
             if(indicator_vel_y == 0 && velocity_y != 0) // indicator_vel_y == 0 - speeding up slowly is needed
@@ -171,7 +211,12 @@ class regulator_node : public rclcpp::Node
 
                 // Checking if desired velocity was reached
                 if((desired_vel_y >= 0 && velocity_y >= desired_vel_y) || (desired_vel_y <= 0 && velocity_y <= desired_vel_y))
+                {
                     indicator_vel_y = 2;                // indicator_vel_y == 2 - slow speeding up is done
+
+                    for(int i = 0; i < 5; i++)         // Informing when ramp in y axe is done
+                        RCLCPP_INFO(this->get_logger(), White_back Black_b "[INFO] Ramp y DONE." Reset);
+                }
             }
 
             // Create a Twist message
@@ -190,8 +235,9 @@ class regulator_node : public rclcpp::Node
             twist_msg.linear.y = velocity_y;
             double z_landing_vel = -0.15;		// Landing speed
             double z_landing_vel_stop = 0.0; 	// Landing speed
-            double landing_high_limit = 0.3;	// Stop decreasing when this level is reached [m]
+            double landing_high_limit = 1;	    // Stop decreasing when this level is reached [m]
             double horizontal_thrshld = 0.03;   // horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
+            double vertical_error = 0.05;       // vertical error of detector for z axe [m]
 
             // If height in z is more than z_landing_vel_stop height &&
             // If x or y are in interval (horizontal_thrshld; - horizontal_thrshld), then vertical movement is allowed
@@ -201,6 +247,14 @@ class regulator_node : public rclcpp::Node
             else
                 twist_msg.linear.z = (msg->pose.position.z > landing_high_limit && x < horizontal_thrshld && x > - horizontal_thrshld && y < horizontal_thrshld && y > - horizontal_thrshld) ? z_landing_vel : z_landing_vel_stop;
             
+            if(msg->pose.position.z >= landing_high_limit + vertical_error) 
+                landing_ind = 0;                                                        // Position of the drone is more than landing_high_limit, changing state of landing
+            else if(landing_ind == 0 && msg->pose.position.z <= landing_high_limit)     // If position of the drone is in axe z less of same as Landing and value of landing_ind is 0, automatic landing is done
+                landing_ind = 1;
+
+            if(landing_ind == 1)
+                RCLCPP_INFO(this->get_logger(), Yellow_b_i "[INFO] Automatic landing DONE, regulation to minimum regulation deviation in axes x and y is still working." Reset);
+
             // No angular movement
             twist_msg.angular.x = 0.0;		
             twist_msg.angular.y = 0.0;
@@ -212,7 +266,7 @@ class regulator_node : public rclcpp::Node
                 twist_publisher_->publish(twist_msg);
 
                 // Log what was published
-                RCLCPP_INFO(this->get_logger(), "Input Pose: x=%.2f, y=%.2f -> Velocity: linear.x=%.2f, linear.y=%.2f, linear.z=%.2f",
+                RCLCPP_INFO(this->get_logger(), Green "[DATA] " Reset "Input Pose: x = %.2f, y = %.2f -> Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f",
                             x, y, velocity_x, velocity_y, twist_msg.linear.z);
             }
         }
@@ -225,6 +279,7 @@ class regulator_node : public rclcpp::Node
         double actual_vel_y;
         double desired_vel_x;
         double desired_vel_y;
+        int landing_ind;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_0;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_1;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_2;

@@ -1,0 +1,43 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/tomi/uas_simulation/workspace/install/px4_ros2_bridge/include/**",
+        "/home/tomi/uas_simulation/workspace/install/planners/include/**",
+        "/home/tomi/uas_simulation/workspace/install/controllers/include/**",
+        "/home/tomi/uas_simulation/workspace/install/managers/include/**",
+        "/home/tomi/uas_simulation/workspace/install/uas_std/include/**",
+        "/home/tomi/uas_simulation/workspace/install/uas_controller/include/**",
+        "/home/tomi/uas_simulation/workspace/install/input/include/**",
+        "/home/tomi/uas_simulation/workspace/install/aruco_ros/include/**",
+        "/home/tomi/uas_simulation/workspace/install/aruco_msgs/include/**",
+        "/home/tomi/uas_simulation/workspace/install/aruco/include/**",
+        "/home/tomi/uas_simulation/external_packages/install/ros_ign_interfaces/include/**",
+        "/home/tomi/uas_simulation/external_packages/install/ros_gz_sim/include/**",
+        "/home/tomi/uas_simulation/external_packages/install/ros_gz_bridge/include/**",
+        "/home/tomi/uas_simulation/external_packages/install/ros_gz_interfaces/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/tomi/uas_simulation/workspace/src/asgard/input/include/**",
+        "/home/tomi/uas_simulation/workspace/src/vanaheim/aruco_ros/aruco/include/**",
+        "/home/tomi/uas_simulation/workspace/src/vanaheim/aruco_ros/aruco_ros/include/**",
+        "/home/tomi/uas_simulation/workspace/src/vanaheim/controllers/include/**",
+        "/home/tomi/uas_simulation/workspace/src/vanaheim/managers/include/**",
+        "/home/tomi/uas_simulation/workspace/src/vanaheim/planners/include/**",
+        "/home/tomi/uas_simulation/workspace/src/vanaheim/px4_ros2_bridge/include/**",
+        "/home/tomi/uas_simulation/workspace/src/vanaheim/uav_landing/include/**",
+        "include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
