@@ -166,19 +166,22 @@ class regulator_node : public rclcpp::Node
                 indicator_vel_x = 1;                    // indicator_vel_x == 1 - slow speeding up is in progress
 
                 // Setting desired velocity from saturation velocity level, velocity can be also negative and so saturation level need to be also negative
-                if(velocity_x <= 0 && velocity_x < - vel_saturation)    
+                if(velocity_x < 0 && velocity_x < - vel_saturation)    
                     desired_vel_x = - vel_saturation;                   
                 else if (velocity_x > 0 && velocity_x > vel_saturation)
                     desired_vel_x = vel_saturation;
+                else
+                    desired_vel_x = velocity_x;
             }
             
             if(indicator_vel_x == 1)                    // indicator_vel_x == 1 - slow speeding up is in progress
             {
                 // Increasing or decreasing actual velocity based on desired velocity
                 if(desired_vel_x != actual_vel_x)
+                {
                     actual_vel_x = (desired_vel_x > actual_vel_x) ? actual_vel_x + speed_inc_dec : actual_vel_x - speed_inc_dec;
-
-                velocity_x = actual_vel_x;
+                    velocity_x = actual_vel_x;
+                }
 
                 // Checking if desired velocity was reached
                 if((desired_vel_x >= 0 && velocity_x >= desired_vel_x) || (desired_vel_x <= 0 && velocity_x <= desired_vel_x))
@@ -195,19 +198,22 @@ class regulator_node : public rclcpp::Node
                 indicator_vel_y = 1;                    // indicator_vel_y == 1 - slow speeding up is in progress
                 
                 // Setting desired velocity from saturation velocity level, velocity can be also negative and so saturation level need to be also negative
-                if(velocity_y <= 0 && velocity_y < - vel_saturation)
+                if(velocity_y < 0 && velocity_y < - vel_saturation)
                     desired_vel_y = - vel_saturation;
                 else if (velocity_y > 0 && velocity_y > vel_saturation)
                     desired_vel_y = vel_saturation;
+                else
+                    desired_vel_y = velocity_y;
             }
             
             if(indicator_vel_y == 1)                    // indicator_vel_y == 1 - slow speeding up is in progress
             {
                 // Increasing or decreasing actual velocity based on desired velocity
                 if(desired_vel_y != actual_vel_y)
+                {
                     actual_vel_y = (desired_vel_y > actual_vel_y) ? actual_vel_y + speed_inc_dec : actual_vel_y - speed_inc_dec;
-
-                velocity_y = actual_vel_y;
+                    velocity_y = actual_vel_y;
+                }
 
                 // Checking if desired velocity was reached
                 if((desired_vel_y >= 0 && velocity_y >= desired_vel_y) || (desired_vel_y <= 0 && velocity_y <= desired_vel_y))
