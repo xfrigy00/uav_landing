@@ -3,7 +3,7 @@
 #include <geometry_msgs/msg/twist.hpp>
 
 // Text
-#define Green "\033[1;32m"      // Green
+#define Green_b "\033[1;32m"     // Green bold
 #define Black_b "\033[1;30m"    // Black bold
 #define Cyan_b "\033[1;36m"     // Cyan bold
 #define Blue_b "\033[1;34m"     // Blue bold
@@ -23,7 +23,7 @@ class regulator_node : public rclcpp::Node
     public:
         regulator_node() : Node("regulator_node") 
         {
-            // Create a subscriber
+            // Create subscribers
             pose_subscriber_0 = this->create_subscription<geometry_msgs::msg::PoseStamped>(
                 "/aruco_single/pose", 10,
                 std::bind(&regulator_node::poseCallback, this, std::placeholders::_1)
@@ -272,7 +272,7 @@ class regulator_node : public rclcpp::Node
                 twist_publisher_->publish(twist_msg);
 
                 // Log what was published
-                RCLCPP_INFO(this->get_logger(), Green "[DATA] " Reset "Input Pose: x = %.2f, y = %.2f -> Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f",
+                RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Input Pose: x = %.2f, y = %.2f -> Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f",
                             x, y, velocity_x, velocity_y, twist_msg.linear.z);
             }
         }

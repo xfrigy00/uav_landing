@@ -12,4 +12,5 @@ windows:
         - ros2 topic echo /aruco_single_1/pose_1
         - ros2 topic echo /aruco_single_2/pose_2
         - ros2 run aruco_ros camera_info_publisher
+        - ros2 run aruco_ros marker_detector
         - ros2 run uav_landing regulator_node
