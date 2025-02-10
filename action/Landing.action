@@ -2,7 +2,7 @@
 float64 target_height
 ---
 # Result - Landing state: 0 - landing failed, 1 - landed successfully, 2 - landing aborted
-bool status_code
+int8 status_code
 ---
 # Feedback - Current drone height in meters
 float64 current_height
