@@ -1,0 +1,8 @@
+# Goal - Desired final height in meters
+float64 target_height
+---
+# Result - Landing state: 1 - landed successfully, 2 - landing canceled
+int8 status_code
+---
+# Feedback - Current drone height in meters
+float64 current_height
