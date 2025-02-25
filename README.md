@@ -3,7 +3,7 @@
 
 #### Nodes
 
-* regulator_node
+* action (will be edited)
 
 **Run with**: `cd ~/uas_simulation/workspace/src/vanaheim/uav_landing/start` and `./start`   
 **Stop with**: `tmux kill-server`
