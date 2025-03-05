@@ -74,6 +74,18 @@ namespace uav_landing_cpp
                     "/x500_1/aircraft/marker_detection_2", 10
                 );
 
+                int_publisher_3 = this->create_publisher<std_msgs::msg::Int8>(
+                    "/x500_1/aircraft/cancel_smallest", 10
+                );
+
+                int_publisher_4 = this->create_publisher<std_msgs::msg::Int8>(
+                    "/x500_1/aircraft/cancel_middle_sized", 10
+                );
+
+                int_publisher_5 = this->create_publisher<std_msgs::msg::Int8>(
+                    "/x500_1/aircraft/cancel_biggest", 10
+                );
+
                 // Create a timer
                 timer_ = this->create_wall_timer(
                     500ms, std::bind(&LandingActionClient::timer_callback, this));
@@ -91,6 +103,15 @@ namespace uav_landing_cpp
                 marker_detected_2 = 0;       // Output_2 from detector
 
                 goal_sent = 0;               // Variable for detection of sending the goal
+
+                counter_ND_s = 0;            // Counter of non-detection of the smallest marker
+                counter_ND_m = 0;            // Counter of non-detection of the middle-sized marker
+                counter_ND_b = 0;            // Counter of non-detection of the biggest marker
+                    
+                cancel_secs = 2;             // Time in seconds after which the goal is cancelled
+                smallest_cancel = 0;         // Cancelled goal becasue of non - detection of the smallest marker
+                middle_cancel = 0;           // Cancelled goal becasue of non - detection of the middle-sized marker
+                biggest_cancel = 0;          // Cancelled goal becasue of non - detection of the biggest marker
 
                 RCLCPP_INFO(this->get_logger(), Cyan_b "[INFO] Marker detector action client has started." Reset); // Informing about starting a node
             }
@@ -164,8 +185,13 @@ namespace uav_landing_cpp
             // Processing data after every time period of timer
             void timer_callback()
             {
+                auto Int8_msg_3 = std_msgs::msg::Int8();
+                Int8_msg_3.data = smallest_cancel;
                 if(msg_time_actual_0 != msg_time_prev_0)    // If actual time stamp value is different from previous time stamp value, marker is detected
                 {
+                    counter_ND_s = 0;
+                    smallest_cancel = 0;
+
                     marker_detected_0 = 1;
                     msg_time_prev_0 = msg_time_actual_0;
                     RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Smallest marker detected." Reset);
@@ -180,11 +206,23 @@ namespace uav_landing_cpp
                 else
                 {
                     marker_detected_0 = 0;                  // If actual time stamp value is same as previous time stamp value, marker is not detected
-                    RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Smallest marker was NOT detected." Reset);
+
+                    if(counter_ND_s >= cancel_secs * 2)     // If time of counter of non-detection of the smallest marker equals or is greater than time cancel_secs seconds (cancel_secs * 1/(timer period of 500 ms))
+                        smallest_cancel = 1;                // Cancel the goal
+                    
+                    counter_ND_s++;                         // Incrementing counter of non-detection of the smallest marker
+                    Int8_msg_3.data = smallest_cancel; 
+
+                    RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Smallest marker was NOT detected %d times." Reset, counter_ND_s);
                 }
 
+                auto Int8_msg_4 = std_msgs::msg::Int8();
+                Int8_msg_4.data = middle_cancel;
                 if(msg_time_actual_1 != msg_time_prev_1)    // If actual time stamp value is different from previous time stamp value, marker is detected
-                {
+                {   
+                    counter_ND_m = 0;
+                    middle_cancel = 0;
+
                     marker_detected_1 = 1;
                     msg_time_prev_1 = msg_time_actual_1;
                     RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Middle - sized marker detected." Reset);
@@ -199,11 +237,23 @@ namespace uav_landing_cpp
                 else
                 {
                     marker_detected_1 = 0;                  // If actual time stamp value is same as previous time stamp value, marker is not detected
-                    RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Middle - sized marker was NOT detected." Reset);
+
+                    if(counter_ND_m >= cancel_secs * 2)     // If time of counter of non-detection of the middle - sized marker equals or is greater than time cancel_secs seconds (cancel_secs * 1/(timer period of 500 ms))
+                        middle_cancel = 1;                // Cancel the goal
+                
+                    counter_ND_m++;                         // Incrementing counter of non-detection of the middle - sized marker
+                    Int8_msg_4.data = middle_cancel; 
+
+                    RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Middle - sized marker was NOT detected %d times." Reset, counter_ND_m);
                 }
 
+                auto Int8_msg_5 = std_msgs::msg::Int8();
+                Int8_msg_5.data = biggest_cancel;
                 if(msg_time_actual_2 != msg_time_prev_2)    // If actual time stamp value is different from previous time stamp value, marker is detected
                 {
+                    counter_ND_b = 0;
+                    biggest_cancel = 0;
+
                     marker_detected_2 = 1;
                     msg_time_prev_2 = msg_time_actual_2;
                     RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Biggest marker detected." Reset);
@@ -218,13 +268,21 @@ namespace uav_landing_cpp
                 else
                 {
                     marker_detected_2 = 0;                  // If actual time stamp value is same as previous time stamp value, marker is not detected
-                    RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Biggest marker was NOT detected." Reset);
+
+                    if(counter_ND_b >= cancel_secs * 2)     // If time of counter of non-detection of the biggest marker equals or is greater than time cancel_secs seconds (cancel_secs * 1/(timer period of 500 ms))
+                        biggest_cancel = 1;                // Cancel the goal
+                
+                    counter_ND_b++;                         // Incrementing counter of non-detection of the biggest marker
+                    Int8_msg_5.data = biggest_cancel; 
+
+                    RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Biggest marker was NOT detected %d times." Reset, counter_ND_b);
                 }
 
                 // Create an Int8 message
                 auto Int8_msg_0 = std_msgs::msg::Int8();
                 auto Int8_msg_1 = std_msgs::msg::Int8();
                 auto Int8_msg_2 = std_msgs::msg::Int8();
+
                 
                 // Fill and publish an Int8 message
                 Int8_msg_0.data = marker_detected_0; 
@@ -237,6 +295,11 @@ namespace uav_landing_cpp
                 // Fill and publish an Int8 message
                 Int8_msg_2.data = marker_detected_2; 
                 int_publisher_2->publish(Int8_msg_2);
+                
+                // Publish an Int8 message of cancelling the goal because of non - detection of the markers
+                int_publisher_3->publish(Int8_msg_3);
+                int_publisher_4->publish(Int8_msg_4);
+                int_publisher_5->publish(Int8_msg_5);
             }
 
             // Receiving new data
@@ -261,7 +324,7 @@ namespace uav_landing_cpp
             double marker_detected_0;    // Output from detector
 
             double msg_time_prev_1;      // Variable with previous time stamp
-            double msg_time_actual_1;    // Variable with actual time stamp
+            double msg_time_actual_1;    // Variable with actual time stampabort
             double marker_detected_1;    // Output from detector
 
             double msg_time_prev_2;      // Variable with previous time stamp
@@ -270,6 +333,13 @@ namespace uav_landing_cpp
 
             // Member variables for times, subscribers and publishers
             int goal_sent;
+            int cancel_secs;
+            int counter_ND_s;           // Counter of non - detection of the smallest marker
+            int counter_ND_m;           // Counter of non - detection of the middle-sized marker
+            int counter_ND_b;           // Counter of non - detection of the biggest marker
+            int smallest_cancel;        // Cancelled goal becasue of non - detection of the smallest marker
+            int middle_cancel;          // Cancelled goal becasue of non - detection of the middle-sized marker
+            int biggest_cancel;         // Cancelled goal becasue of non - detection of the biggest marker
             rclcpp::TimerBase::SharedPtr timer_;
             rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_0;
             rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_1;
@@ -277,6 +347,9 @@ namespace uav_landing_cpp
             rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_0;
             rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_1;
             rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_2;
+            rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_3;
+            rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_4;
+            rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_5;
     };
 }   // namespace
 

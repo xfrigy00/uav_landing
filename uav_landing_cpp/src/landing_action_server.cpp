@@ -1,6 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
+//#include <std_msgs/msg/int8.hpp>
 
 #include <functional>
 #include <memory>
@@ -69,6 +70,21 @@ class LandingActionServer : public rclcpp::Node
                 std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
             );
 
+            /*pose_subscriber_3 = this->create_subscription<std_msgs::msg::Int8>(
+                "/x500_1/aircraft/cancel_smallest", 10,
+                std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
+            );
+
+            pose_subscriber_4 = this->create_subscription<std_msgs::msg::Int8>(
+                "/x500_1/aircraft/cancel_middle_sized", 10,
+                std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
+            );
+
+            pose_subscriber_5 = this->create_subscription<std_msgs::msg::Int8>(
+                "/x500_1/aircraft/cancel_biggest", 10,
+                std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
+            );*/
+
             // Create a publisher
             twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(
                 "/x500_1/aircraft/cmd_vel", 10
@@ -88,6 +104,14 @@ class LandingActionServer : public rclcpp::Node
             target_height = 0;     
             goal_got = 0;           // Variable for detecting if an action goal was received
             goal_cancel = 0;
+            goal_cancel_difference = 0;
+            diff_x_old = 0;
+            diff_y_old = 0;
+            diff_z_old = 0;
+            diff_x = 0;
+            diff_y = 0;
+            diff_z = 0;
+            diff_allow = 0;
 
             // Setting variable for indicating end of landing
             landing_ind = 2;    /*  2 - landig was started but position of the drone is less than landing_high_limit, 
@@ -102,7 +126,7 @@ class LandingActionServer : public rclcpp::Node
 
         // Processing the pose messages
         void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) 
-        {
+        {   
             /*
             Procedure:
             Height loading
@@ -185,134 +209,167 @@ class LandingActionServer : public rclcpp::Node
                 {
                     x = msg->pose.position.x + horizontal_dev_x;
                     y = msg->pose.position.y + horizontal_dev_y;
-                }
-
-                // P regulator
-                // World coordinates: x: ↑, y: ←
-                double velocity_x = Kp * y;                 // Velocity in world x coordinate
-                double velocity_y = Kp * x;                 // Velocity in world y coordinate
-                velocity_x = velocity_x * (-1);             // X of a world coordinate system and y of an image coordinate system are oppositely oriented
-                velocity_y = velocity_y * (-1);             // Y of a world coordinate system and x of an image coordinate system are oppositely oriented
-
-                // Velocity saturation limit
-                double vel_saturation = 1.0;                // Velocity saturation [m]
-
-                // Slow speeding up after start of the regulator_node_server
-                double speed_inc_dec = 0.002;               // speed adding by speed_inc_dec m / s
-                if(indicator_vel_x == 0 && velocity_x != 0) // indicator_vel_x == 0 - speeding up slowly is needed
-                {
-                    indicator_vel_x = 1;                    // indicator_vel_x == 1 - slow speeding up is in progress
-
-                    // Setting desired velocity from saturation velocity level, velocity can be also negative and so saturation level need to be also negative
-                    if(velocity_x < 0 && velocity_x < - vel_saturation)    
-                        desired_vel_x = - vel_saturation;                   
-                    else if (velocity_x > 0 && velocity_x > vel_saturation)
-                        desired_vel_x = vel_saturation;
-                    else
-                        desired_vel_x = velocity_x;
-                }
                 
-                if(indicator_vel_x == 1)                    // indicator_vel_x == 1 - slow speeding up is in progress
-                {
-                    // Increasing or decreasing actual velocity based on desired velocity
-                    if(desired_vel_x != actual_vel_x)
+                    // Counting difference
+                    double diff_threshold = 0.2;      // Threshold for difference
+
+                    // Ignore first difference
+                    if(diff_allow == 0)
+                        diff_allow++;
+                    else
                     {
-                        actual_vel_x = (desired_vel_x > actual_vel_x) ? actual_vel_x + speed_inc_dec : actual_vel_x - speed_inc_dec;
-                        velocity_x = actual_vel_x;
+                        diff_x = x - diff_x_old;    // Difference in x axe
+                        diff_y = y - diff_y_old;    // Difference in y axe
+                        diff_z = z - diff_z_old;    // Difference in z axe
                     }
-
-                    // Checking if desired velocity was reached
-                    if((desired_vel_x >= 0 && velocity_x >= desired_vel_x) || (desired_vel_x <= 0 && velocity_x <= desired_vel_x))
-                    {
-                        indicator_vel_x = 2;                // indicator_vel_x == 2 - slow speeding up is done
-
-                        for(int i = 0; i < 5; i++)          // Informing when ramp in x axe is done
-                            RCLCPP_INFO(this->get_logger(), Black_back White_b "[INFO] Ramp y DONE." Reset);
-                    }
-                }
-
-                if(indicator_vel_y == 0 && velocity_y != 0) // indicator_vel_y == 0 - speeding up slowly is needed
-                {
-                    indicator_vel_y = 1;                    // indicator_vel_y == 1 - slow speeding up is in progress
                     
-                    // Setting desired velocity from saturation velocity level, velocity can be also negative and so saturation level need to be also negative
-                    if(velocity_y < 0 && velocity_y < - vel_saturation)
-                        desired_vel_y = - vel_saturation;
-                    else if (velocity_y > 0 && velocity_y > vel_saturation)
-                        desired_vel_y = vel_saturation;
+                    //RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "diff_x = %.2f, diff_y = %.2f, diff_x_old = %.2f, diff_y_old = %.2f, x = %.2f, y = %.2f,", diff_x, diff_y, diff_x_old, diff_y_old, x ,y);
+                    
+                    // If goal was canceled, cancel the goal
+                    // diff_threshold and (- diff_threshold) are because in diff_(x, y, z) = (x, y, z) - diff_(x, y, z)_old; above is not absolute value
+                    if(diff_x > diff_threshold || diff_x < -diff_threshold || diff_y > diff_threshold || diff_y < -diff_threshold || diff_z > diff_threshold || diff_z < -diff_threshold)
+                        goal_cancel_difference = 1;
+
+                    // Saving actual deviaton values for the next iteration
+                    diff_x_old = x;
+                    diff_y_old = y;
+                    diff_z_old = z;
+
+                    // P regulator
+                    // World coordinates: x: ↑, y: ←
+                    double velocity_x = Kp * y;                 // Velocity in world x coordinate
+                    double velocity_y = Kp * x;                 // Velocity in world y coordinate
+                    velocity_x = velocity_x * (-1);             // X of a world coordinate system and y of an image coordinate system are oppositely oriented
+                    velocity_y = velocity_y * (-1);             // Y of a world coordinate system and x of an image coordinate system are oppositely oriented
+
+                    // Velocity saturation limit
+                    double vel_saturation = 1.0;                // Velocity saturation [m]
+
+                    // Slow speeding up after start of the regulator_node_server
+                    double speed_inc_dec = 0.002;               // speed adding by speed_inc_dec m / s
+                    if(indicator_vel_x == 0 && velocity_x != 0) // indicator_vel_x == 0 - speeding up slowly is needed
+                    {
+                        indicator_vel_x = 1;                    // indicator_vel_x == 1 - slow speeding up is in progress
+
+                        // Setting desired velocity from saturation velocity level, velocity can be also negative and so saturation level need to be also negative
+                        if(velocity_x < 0 && velocity_x < - vel_saturation)    
+                            desired_vel_x = - vel_saturation;                   
+                        else if (velocity_x > 0 && velocity_x > vel_saturation)
+                            desired_vel_x = vel_saturation;
+                        else
+                            desired_vel_x = velocity_x;
+                    }
+                    
+                    if(indicator_vel_x == 1)                    // indicator_vel_x == 1 - slow speeding up is in progress
+                    {
+                        // Increasing or decreasing actual velocity based on desired velocity
+                        if(desired_vel_x != actual_vel_x)
+                        {
+                            actual_vel_x = (desired_vel_x > actual_vel_x) ? actual_vel_x + speed_inc_dec : actual_vel_x - speed_inc_dec;
+                            velocity_x = actual_vel_x;
+                        }
+
+                        // Checking if desired velocity was reached
+                        if((desired_vel_x >= 0 && velocity_x >= desired_vel_x) || (desired_vel_x <= 0 && velocity_x <= desired_vel_x))
+                        {
+                            indicator_vel_x = 2;                // indicator_vel_x == 2 - slow speeding up is done
+
+                            for(int i = 0; i < 5; i++)          // Informing when ramp in x axe is done
+                                RCLCPP_INFO(this->get_logger(), Black_back White_b "[INFO] Ramp y DONE." Reset);
+                        }
+                    }
+
+                    if(indicator_vel_y == 0 && velocity_y != 0) // indicator_vel_y == 0 - speeding up slowly is needed
+                    {
+                        indicator_vel_y = 1;                    // indicator_vel_y == 1 - slow speeding up is in progress
+                        
+                        // Setting desired velocity from saturation velocity level, velocity can be also negative and so saturation level need to be also negative
+                        if(velocity_y < 0 && velocity_y < - vel_saturation)
+                            desired_vel_y = - vel_saturation;
+                        else if (velocity_y > 0 && velocity_y > vel_saturation)
+                            desired_vel_y = vel_saturation;
+                        else
+                            desired_vel_y = velocity_y;
+                    }
+                    
+                    if(indicator_vel_y == 1)                    // indicator_vel_y == 1 - slow speeding up is in progress
+                    {
+                        // Increasing or decreasing actual velocity based on desired velocity
+                        if(desired_vel_y != actual_vel_y)
+                        {
+                            actual_vel_y = (desired_vel_y > actual_vel_y) ? actual_vel_y + speed_inc_dec : actual_vel_y - speed_inc_dec;
+                            velocity_y = actual_vel_y;
+                        }
+
+                        // Checking if desired velocity was reached
+                        if((desired_vel_y >= 0 && velocity_y >= desired_vel_y) || (desired_vel_y <= 0 && velocity_y <= desired_vel_y))
+                        {
+                            indicator_vel_y = 2;                // indicator_vel_y == 2 - slow speeding up is done
+
+                            for(int i = 0; i < 5; i++)         // Informing when ramp in y axe is done
+                                RCLCPP_INFO(this->get_logger(), White_back Black_b "[INFO] Ramp y DONE." Reset);
+                        }
+                    }
+
+                    // Create a Twist message
+                    auto twist_msg = geometry_msgs::msg::Twist();
+
+                    // Apply saturation for velocity_x
+                    velocity_x = (velocity_x > vel_saturation) ? vel_saturation : velocity_x;
+                    velocity_x  = (velocity_x < -vel_saturation) ? -vel_saturation : velocity_x;
+
+                    // Apply saturation for velocity_y
+                    velocity_y = (velocity_y > vel_saturation) ? vel_saturation : velocity_y;
+                    velocity_y = (velocity_y < -vel_saturation) ? -vel_saturation : velocity_y;
+
+                    // Fill and publish a Twist message
+                    twist_msg.linear.x = velocity_x; 
+                    twist_msg.linear.y = velocity_y;
+                    double z_landing_vel = -0.15;		// Landing speed
+                    double z_landing_vel_stop = 0.0; 	// Landing speed
+                    double landing_high_limit = target_height;	    // Stop decreasing when this level is reached [m]
+                    double horizontal_thrshld = 0.03;   // horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
+                    double vertical_error = 0.05;       // vertical error of detector for z axe [m]
+
+                    // If height in z is more than z_landing_vel_stop height &&
+                    // If x or y are in interval (horizontal_thrshld; - horizontal_thrshld), then vertical movement is allowed
+                    double no_inp_bord = 0.05;          // Border for interval without input [m]
+                    if (((goal_cancel == 0) && (z < level_2 + no_inp_bord && z > level_2 - no_inp_bord)) || ((goal_cancel == 0) && (z < level_1 + no_inp_bord && z > level_1 - no_inp_bord)))   // Avoiding two inputs and just descending without input
+                        twist_msg.linear.z = z_landing_vel;
                     else
-                        desired_vel_y = velocity_y;
-                }
-                
-                if(indicator_vel_y == 1)                    // indicator_vel_y == 1 - slow speeding up is in progress
-                {
-                    // Increasing or decreasing actual velocity based on desired velocity
-                    if(desired_vel_y != actual_vel_y)
+                        twist_msg.linear.z = (goal_cancel == 0 && msg->pose.position.z > landing_high_limit && x < horizontal_thrshld && x > - horizontal_thrshld && y < horizontal_thrshld && y > - horizontal_thrshld) ? z_landing_vel : z_landing_vel_stop;
+                    
+                    // If goal was canceled, stop the drone
+                    if(goal_cancel == 1 || goal_cancel_difference == 1)
                     {
-                        actual_vel_y = (desired_vel_y > actual_vel_y) ? actual_vel_y + speed_inc_dec : actual_vel_y - speed_inc_dec;
-                        velocity_y = actual_vel_y;
+                        twist_msg.linear.x = 0.0;       
+                        twist_msg.linear.y = 0.0;
+                        twist_msg.linear.z = 0.0;
                     }
 
-                    // Checking if desired velocity was reached
-                    if((desired_vel_y >= 0 && velocity_y >= desired_vel_y) || (desired_vel_y <= 0 && velocity_y <= desired_vel_y))
+                    if(msg->pose.position.z >= landing_high_limit + vertical_error) 
+                        landing_ind = 0;                                                        // Position of the drone is more than landing_high_limit, changing state of landing
+                    else if(landing_ind == 0 && msg->pose.position.z <= landing_high_limit)     // If position of the drone is in axe z less of same as Landing and value of landing_ind is 0, automatic landing is done
                     {
-                        indicator_vel_y = 2;                // indicator_vel_y == 2 - slow speeding up is done
-
-                        for(int i = 0; i < 5; i++)         // Informing when ramp in y axe is done
-                            RCLCPP_INFO(this->get_logger(), White_back Black_b "[INFO] Ramp y DONE." Reset);
+                        landing_ind = 1;
+                        for(int i = 0; i < 100; i++)
+                            RCLCPP_INFO(this->get_logger(), Yellow_b_i "[INFO] Automatic landing DONE, regulation to minimum regulation deviation in axes x and y is still working." Reset);
                     }
-                }
 
-                // Create a Twist message
-                auto twist_msg = geometry_msgs::msg::Twist();
+                    // No angular movement
+                    twist_msg.angular.x = 0.0;		
+                    twist_msg.angular.y = 0.0;
+                    twist_msg.angular.z = 0.0;
 
-                // Apply saturation for velocity_x
-                velocity_x = (velocity_x > vel_saturation) ? vel_saturation : velocity_x;
-                velocity_x  = (velocity_x < -vel_saturation) ? -vel_saturation : velocity_x;
+                    // Publish only data from used frame
+                    if((z > level_2 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_2") || (z <= level_2 && z >= level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_1") || (z < level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_0"))
+                    {
+                        twist_publisher_->publish(twist_msg);
 
-                // Apply saturation for velocity_y
-                velocity_y = (velocity_y > vel_saturation) ? vel_saturation : velocity_y;
-                velocity_y = (velocity_y < -vel_saturation) ? -vel_saturation : velocity_y;
-
-                // Fill and publish a Twist message
-                twist_msg.linear.x = velocity_x; 
-                twist_msg.linear.y = velocity_y;
-                double z_landing_vel = -0.15;		// Landing speed
-                double z_landing_vel_stop = 0.0; 	// Landing speed
-                double landing_high_limit = target_height;	    // Stop decreasing when this level is reached [m]
-                double horizontal_thrshld = 0.03;   // horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
-                double vertical_error = 0.05;       // vertical error of detector for z axe [m]
-
-                // If height in z is more than z_landing_vel_stop height &&
-                // If x or y are in interval (horizontal_thrshld; - horizontal_thrshld), then vertical movement is allowed
-                double no_inp_bord = 0.05;          // Border for interval without input [m]
-                if (((goal_cancel == 0) && (z < level_2 + no_inp_bord && z > level_2 - no_inp_bord)) || ((goal_cancel == 0) && (z < level_1 + no_inp_bord && z > level_1 - no_inp_bord)))   // Avoiding two inputs and just descending without input
-                    twist_msg.linear.z = z_landing_vel;
-                else
-                    twist_msg.linear.z = (goal_cancel == 0 && msg->pose.position.z > landing_high_limit && x < horizontal_thrshld && x > - horizontal_thrshld && y < horizontal_thrshld && y > - horizontal_thrshld) ? z_landing_vel : z_landing_vel_stop;
-                
-                if(msg->pose.position.z >= landing_high_limit + vertical_error) 
-                    landing_ind = 0;                                                        // Position of the drone is more than landing_high_limit, changing state of landing
-                else if(landing_ind == 0 && msg->pose.position.z <= landing_high_limit)     // If position of the drone is in axe z less of same as Landing and value of landing_ind is 0, automatic landing is done
-                {
-                    landing_ind = 1;
-                    for(int i = 0; i < 100; i++)
-                        RCLCPP_INFO(this->get_logger(), Yellow_b_i "[INFO] Automatic landing DONE, regulation to minimum regulation deviation in axes x and y is still working." Reset);
-                }
-
-                // No angular movement
-                twist_msg.angular.x = 0.0;		
-                twist_msg.angular.y = 0.0;
-                twist_msg.angular.z = 0.0;
-
-                // Publish only data from used frame
-                if((z > level_2 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_2") || (z <= level_2 && z >= level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_1") || (z < level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_0"))
-                {
-                    twist_publisher_->publish(twist_msg);
-
-                    // Log what was published
-                    RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Input Pose: x = %.2f, y = %.2f -> Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f",
-                                x, y, velocity_x, velocity_y, twist_msg.linear.z);
+                        // Log what was published
+                        RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Input Pose: x = %.2f, y = %.2f -> Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f",
+                                    x, y, twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
+                    }
                 }
             }
         }
@@ -323,6 +380,11 @@ class LandingActionServer : public rclcpp::Node
             RCLCPP_INFO(this->get_logger(), "Received goal request with height %.2f m", goal->target_height);
             goal_got = 1;
             goal_cancel = 0;
+            diff_x_old = 0;
+            diff_y_old = 0;
+            diff_z_old = 0;
+            diff_allow = 0;
+            goal_cancel_difference = 0;
             (void)uuid;
             return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
         }
@@ -352,7 +414,7 @@ class LandingActionServer : public rclcpp::Node
             auto feedback = std::make_shared<Landing::Feedback>();
             auto result = std::make_shared<Landing::Result>();
 
-            while (target_height < z && rclcpp::ok()) 
+            while (target_height < z && rclcpp::ok() && goal_cancel_difference != 1) 
             {
                 // Check if there is a cancel request
                 if (goal_handle->is_canceling()) 
@@ -361,14 +423,24 @@ class LandingActionServer : public rclcpp::Node
                     goal_handle->canceled(result);
                     RCLCPP_INFO(this->get_logger(), Red_b "Goal canceled" Reset);
                     goal_cancel = 1;
+
                     return;
                 }
 
                 feedback->set__current_height(z);
                 goal_handle->publish_feedback(feedback);
                 RCLCPP_INFO(this->get_logger(), Blue_b "Publish feedback" Reset);
-
+                
                 loop_rate.sleep();
+            }
+            
+            // Cancelling because of high difference
+            if(goal_cancel_difference == 1)
+            {
+                result->status_code = 2;    // Goal canceled
+                RCLCPP_INFO(this->get_logger(), Red_b "Goal canceled -- HIGH DIFFERENCE --" Reset);
+                goal_handle->abort(result);
+                return;
             }
 
             // Check if goal is done
@@ -380,10 +452,18 @@ class LandingActionServer : public rclcpp::Node
             }
         }
 
-        // Member variables for proportional gain, slow speeding up, subscribers and publisher
+        // Member variables for proportional gain, slow speeding up, subscribers publisher and difference
         int goal_got;
         int goal_cancel;
+        int goal_cancel_difference;
+        int diff_allow;
         float Kp;
+        double diff_x_old;
+        double diff_y_old;
+        double diff_z_old;
+        double diff_x;
+        double diff_y;
+        double diff_z;
         float indicator_vel_x;
         float indicator_vel_y;
         float actual_vel_x;
@@ -396,6 +476,9 @@ class LandingActionServer : public rclcpp::Node
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_0;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_1;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_2;
+        /*rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_3;
+        rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_4;
+        rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_5;*/
         rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr twist_publisher_;
 };
 
