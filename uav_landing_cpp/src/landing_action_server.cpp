@@ -1,7 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
-//#include <std_msgs/msg/int8.hpp>
+#include <std_msgs/msg/int8.hpp>
 
 #include <functional>
 #include <memory>
@@ -70,20 +70,20 @@ class LandingActionServer : public rclcpp::Node
                 std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
             );
 
-            /*pose_subscriber_3 = this->create_subscription<std_msgs::msg::Int8>(
+            pose_subscriber_3 = this->create_subscription<std_msgs::msg::Int8>(
                 "/x500_1/aircraft/cancel_smallest", 10,
-                std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
+                std::bind(&LandingActionServer::poseCallback_s, this, std::placeholders::_1)
             );
 
             pose_subscriber_4 = this->create_subscription<std_msgs::msg::Int8>(
                 "/x500_1/aircraft/cancel_middle_sized", 10,
-                std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
+                std::bind(&LandingActionServer::poseCallback_m, this, std::placeholders::_1)
             );
 
             pose_subscriber_5 = this->create_subscription<std_msgs::msg::Int8>(
                 "/x500_1/aircraft/cancel_biggest", 10,
-                std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
-            );*/
+                std::bind(&LandingActionServer::poseCallback_b, this, std::placeholders::_1)
+            );
 
             // Create a publisher
             twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(
@@ -104,6 +104,7 @@ class LandingActionServer : public rclcpp::Node
             target_height = 0;     
             goal_got = 0;           // Variable for detecting if an action goal was received
             goal_cancel = 0;
+            goal_cancel_detector = 0;
             goal_cancel_difference = 0;
             diff_x_old = 0;
             diff_y_old = 0;
@@ -112,6 +113,9 @@ class LandingActionServer : public rclcpp::Node
             diff_y = 0;
             diff_z = 0;
             diff_allow = 0;
+            poseCallback_s_var = 0;
+            poseCallback_m_var = 0;
+            poseCallback_b_var = 0;
 
             // Setting variable for indicating end of landing
             landing_ind = 2;    /*  2 - landig was started but position of the drone is less than landing_high_limit, 
@@ -124,6 +128,33 @@ class LandingActionServer : public rclcpp::Node
     private:
         rclcpp_action::Server<Landing>::SharedPtr action_server_;
 
+        // Processing the cancel messages
+        void poseCallback_s(const std_msgs::msg::Int8::SharedPtr msg_s) 
+        {
+            if(msg_s->data == 1) // Marker was not detected
+                poseCallback_s_var = 1;
+
+            //RCLCPP_INFO(this->get_logger(), "poseCallback_s msg_s->data = %d", msg_s->data);
+        }
+
+        // Processing the cancel messages
+        void poseCallback_m(const std_msgs::msg::Int8::SharedPtr msg_m) 
+        {
+            if(msg_m->data == 1) // Marker was not detected
+                poseCallback_m_var = 1;
+
+            //RCLCPP_INFO(this->get_logger(), "poseCallback_m msg_m->data = %d", msg_m->data);
+        }
+
+        // Processing the cancel messages
+        void poseCallback_b(const std_msgs::msg::Int8::SharedPtr msg_b) 
+        {
+            if(msg_b->data == 1) // Marker was not detected
+                poseCallback_b_var = 1;
+                
+                //RCLCPP_INFO(this->get_logger(), "poseCallback_b msg_b->data = %d", msg_b->data);
+            }
+
         // Processing the pose messages
         void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) 
         {   
@@ -133,11 +164,26 @@ class LandingActionServer : public rclcpp::Node
             According to height - read x and y data from the message according to msg->header.frame_id
             Horizontal position deviation control
             */
+           
+           // Load height
+           z = msg->pose.position.z;
 
-            // Load height
-            z = msg->pose.position.z;
+           // Create a Twist message
+           auto twist_msg = geometry_msgs::msg::Twist();
 
-            if(goal_got == 1) // Goal has been received
+           if(goal_cancel_detector == 1)
+           {
+               twist_msg.linear.x = 0.0;       
+               twist_msg.linear.y = 0.0;
+               twist_msg.linear.z = 0.0;
+
+               RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f", twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
+               RCLCPP_INFO(this->get_logger(), Red_b "Goal canceled -- DETECTOR ABSENCE --" Reset);
+
+               twist_publisher_->publish(twist_msg);
+           }
+
+            if(goal_got == 1 && goal_cancel_detector == 0) // Goal has been received
             {
                 // Initialize x and y
                 double x = 0;
@@ -201,9 +247,27 @@ class LandingActionServer : public rclcpp::Node
                     horizontal_dev_y = (small_marker_pos_y - middle_y) * (-1);
                 }
 
+                // Cancelling the goal because of non - detection of the markers
+                if(z > level_2 && poseCallback_b_var == 1) // Marker was not detected
+                {
+                    goal_cancel_detector = 1;
+                    //RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Goal canceled because of non-detection of the biggest marker." Reset);
+                }
+                else if(z <= level_2 && z >= level_1 && poseCallback_m_var == 1) // Marker was not detected
+                {
+                    goal_cancel_detector = 1;
+                    //RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Goal canceled because of non-detection of the middle - sized marker." Reset);
+                }
+                else if(z < level_1 && poseCallback_s_var == 1) // Marker was not detected
+                {
+                    goal_cancel_detector = 1;
+                    //RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Goal canceled because of non-detection of the smallest marker." Reset);
+                }
+                
+
                 // Decide which state is active
                 // Camera coordinates: x: →, y: ↓
-                // If more than 3 m, between 3 and 1.5 m or below 1.5 m
+                // If more than level_2 m, between level_2 and level_1 m or below level_1 m
                 // Load x and y positions from the PoseStamped message
                 if((z > level_2 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_2") || (z <= level_2 && z >= level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_1") || (z < level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_0"))
                 {
@@ -228,7 +292,7 @@ class LandingActionServer : public rclcpp::Node
                     // If goal was canceled, cancel the goal
                     // diff_threshold and (- diff_threshold) are because in diff_(x, y, z) = (x, y, z) - diff_(x, y, z)_old; above is not absolute value
                     if(diff_x > diff_threshold || diff_x < -diff_threshold || diff_y > diff_threshold || diff_y < -diff_threshold || diff_z > diff_threshold || diff_z < -diff_threshold)
-                        goal_cancel_difference = 1;
+                    goal_cancel_difference = 1;
 
                     // Saving actual deviaton values for the next iteration
                     diff_x_old = x;
@@ -311,8 +375,6 @@ class LandingActionServer : public rclcpp::Node
                         }
                     }
 
-                    // Create a Twist message
-                    auto twist_msg = geometry_msgs::msg::Twist();
 
                     // Apply saturation for velocity_x
                     velocity_x = (velocity_x > vel_saturation) ? vel_saturation : velocity_x;
@@ -340,7 +402,7 @@ class LandingActionServer : public rclcpp::Node
                         twist_msg.linear.z = (goal_cancel == 0 && msg->pose.position.z > landing_high_limit && x < horizontal_thrshld && x > - horizontal_thrshld && y < horizontal_thrshld && y > - horizontal_thrshld) ? z_landing_vel : z_landing_vel_stop;
                     
                     // If goal was canceled, stop the drone
-                    if(goal_cancel == 1 || goal_cancel_difference == 1)
+                    if(goal_cancel == 1 || goal_cancel_difference == 1 || goal_cancel_detector == 1)
                     {
                         twist_msg.linear.x = 0.0;       
                         twist_msg.linear.y = 0.0;
@@ -378,13 +440,19 @@ class LandingActionServer : public rclcpp::Node
         rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID & uuid, std::shared_ptr<const Landing::Goal> goal)
         {
             RCLCPP_INFO(this->get_logger(), "Received goal request with height %.2f m", goal->target_height);
+
             goal_got = 1;
             goal_cancel = 0;
             diff_x_old = 0;
             diff_y_old = 0;
             diff_z_old = 0;
             diff_allow = 0;
+            poseCallback_s_var = 0;
+            poseCallback_m_var = 0;
+            poseCallback_b_var = 0;
             goal_cancel_difference = 0;
+            goal_cancel_detector = 0;
+
             (void)uuid;
             return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
         }
@@ -414,15 +482,16 @@ class LandingActionServer : public rclcpp::Node
             auto feedback = std::make_shared<Landing::Feedback>();
             auto result = std::make_shared<Landing::Result>();
 
-            while (target_height < z && rclcpp::ok() && goal_cancel_difference != 1) 
+            while (target_height < z && rclcpp::ok() && goal_cancel_difference != 1 && goal_cancel_detector != 1) 
             {
                 // Check if there is a cancel request
                 if (goal_handle->is_canceling()) 
                 {
                     result->status_code = 2;    // Goal canceled
-                    goal_handle->canceled(result);
                     RCLCPP_INFO(this->get_logger(), Red_b "Goal canceled" Reset);
                     goal_cancel = 1;
+                    goal_got = 0;
+                    goal_handle->canceled(result);
 
                     return;
                 }
@@ -434,12 +503,18 @@ class LandingActionServer : public rclcpp::Node
                 loop_rate.sleep();
             }
             
-            // Cancelling because of high difference
-            if(goal_cancel_difference == 1)
+            // Cancelling because of high difference or absence of the detector
+            if(goal_cancel_difference == 1 || goal_cancel_detector == 1)
             {
                 result->status_code = 2;    // Goal canceled
-                RCLCPP_INFO(this->get_logger(), Red_b "Goal canceled -- HIGH DIFFERENCE --" Reset);
+
+                if(goal_cancel_difference == 1)
+                    RCLCPP_INFO(this->get_logger(), Red_b "Goal canceled -- HIGH DIFFERENCE --" Reset);
+                else if(goal_cancel_detector == 1)
+                    RCLCPP_INFO(this->get_logger(), Red_b "Goal canceled -- DETECTOR ABSENCE --" Reset);
+
                 goal_handle->abort(result);
+
                 return;
             }
 
@@ -455,8 +530,12 @@ class LandingActionServer : public rclcpp::Node
         // Member variables for proportional gain, slow speeding up, subscribers publisher and difference
         int goal_got;
         int goal_cancel;
+        int goal_cancel_detector;
         int goal_cancel_difference;
         int diff_allow;
+        int poseCallback_s_var;
+        int poseCallback_m_var;
+        int poseCallback_b_var;
         float Kp;
         double diff_x_old;
         double diff_y_old;
@@ -476,9 +555,9 @@ class LandingActionServer : public rclcpp::Node
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_0;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_1;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_2;
-        /*rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_3;
+        rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_3;
         rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_4;
-        rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_5;*/
+        rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_5;
         rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr twist_publisher_;
 };
 
