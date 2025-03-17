@@ -271,7 +271,7 @@ class regulator_node : public rclcpp::Node
             {
                 twist_publisher_->publish(twist_msg);
 
-                // Log what was pmsgublished
+                // Log what was published
                 RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Input Pose: x = %.2f, y = %.2f -> Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f",
                             x, y, velocity_x, velocity_y, twist_msg.linear.z);
             }
