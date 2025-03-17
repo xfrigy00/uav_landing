@@ -148,7 +148,7 @@ class regulator_node : public rclcpp::Node
                 x = msg->pose.position.x + horizontal_dev_x;
                 y = msg->pose.position.y + horizontal_dev_y;
             }
-
+            
             // P regulator
             // World coordinates: x: ↑, y: ←
             double velocity_x = Kp * y;                 // Velocity in world x coordinate
@@ -265,13 +265,13 @@ class regulator_node : public rclcpp::Node
             twist_msg.angular.x = 0.0;		
             twist_msg.angular.y = 0.0;
             twist_msg.angular.z = 0.0;
-
+            
             // Publish only data from used frame
             if((z > level_2 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_2") || (z <= level_2 && z >= level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_1") || (z < level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_0"))
             {
                 twist_publisher_->publish(twist_msg);
 
-                // Log what was published
+                // Log what was pmsgublished
                 RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Input Pose: x = %.2f, y = %.2f -> Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f",
                             x, y, velocity_x, velocity_y, twist_msg.linear.z);
             }

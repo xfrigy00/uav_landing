@@ -176,14 +176,26 @@ class LandingActionServer : public rclcpp::Node
                twist_msg.linear.x = 0.0;       
                twist_msg.linear.y = 0.0;
                twist_msg.linear.z = 0.0;
-
+               
                RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f", twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
                RCLCPP_INFO(this->get_logger(), Red_b "Goal canceled -- DETECTOR ABSENCE --" Reset);
 
                twist_publisher_->publish(twist_msg);
            }
 
-            if(goal_got == 1 && goal_cancel_detector == 0) // Goal has been received
+           if(goal_cancel_difference == 1)
+           {
+               twist_msg.linear.x = 0.0;       
+               twist_msg.linear.y = 0.0;
+               twist_msg.linear.z = 0.0;
+               
+               RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f", twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
+               RCLCPP_INFO(this->get_logger(), Red_b "Goal canceled -- HIGH DIFFERENCE --" Reset);
+
+               twist_publisher_->publish(twist_msg);
+           }
+
+            if(goal_got == 1 && goal_cancel_detector == 0 && goal_cancel_difference == 0) // Goal has been received
             {
                 // Initialize x and y
                 double x = 0;
@@ -235,6 +247,8 @@ class LandingActionServer : public rclcpp::Node
                 {
                     horizontal_dev_x = (big_marker_pos_x - middle_x) * (-1);
                     horizontal_dev_y = (big_marker_pos_y - middle_y) * (-1);
+                    //horizontal_dev_x = 0;
+                    //horizontal_dev_y = 0;
                 }
                 else if (z <= level_2 && z >= level_1)  // Detecting middle-sized marker but descending smallest
                 {
@@ -292,7 +306,7 @@ class LandingActionServer : public rclcpp::Node
                     // If goal was canceled, cancel the goal
                     // diff_threshold and (- diff_threshold) are because in diff_(x, y, z) = (x, y, z) - diff_(x, y, z)_old; above is not absolute value
                     if(diff_x > diff_threshold || diff_x < -diff_threshold || diff_y > diff_threshold || diff_y < -diff_threshold || diff_z > diff_threshold || diff_z < -diff_threshold)
-                    goal_cancel_difference = 1;
+                        goal_cancel_difference = 1;
 
                     // Saving actual deviaton values for the next iteration
                     diff_x_old = x;
@@ -307,7 +321,7 @@ class LandingActionServer : public rclcpp::Node
                     velocity_y = velocity_y * (-1);             // Y of a world coordinate system and x of an image coordinate system are oppositely oriented
 
                     // Velocity saturation limit
-                    double vel_saturation = 1.0;                // Velocity saturation [m]
+                    double vel_saturation = 0.25;                // Velocity saturation [m]
 
                     // Slow speeding up after start of the regulator_node_server
                     double speed_inc_dec = 0.002;               // speed adding by speed_inc_dec m / s
@@ -443,6 +457,9 @@ class LandingActionServer : public rclcpp::Node
 
             goal_got = 1;
             goal_cancel = 0;
+            diff_x = 0;
+            diff_y = 0;
+            diff_z = 0;
             diff_x_old = 0;
             diff_y_old = 0;
             diff_z_old = 0;
@@ -470,6 +487,7 @@ class LandingActionServer : public rclcpp::Node
         {
             using namespace std::placeholders;
             // this needs to return quickly to avoid blocking the executor, so spin up a new thread
+
             std::thread{std::bind(&LandingActionServer::execute, this, _1), goal_handle}.detach();
         }
 
@@ -522,6 +540,9 @@ class LandingActionServer : public rclcpp::Node
             if (rclcpp::ok()) 
             {
                 result->status_code = 1; // Goal succeeded
+
+                //RCLCPP_INFO(this->get_logger(), Blue_b "HERE" Reset);
+
                 goal_handle->succeed(result);
                 RCLCPP_INFO(this->get_logger(), Green_b "Goal succeeded" Reset);
             }
