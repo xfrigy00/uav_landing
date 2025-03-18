@@ -15,8 +15,8 @@
 #include "uav_landing_cpp/visibility_control.h"
 
 // Text
-#define Red_b "\033[1;31m"      // Red bold
 #define Green_b "\033[1;32m"    // Green bold
+#define Red_b "\033[1;31m"      // Red bold
 #define Black_b "\033[1;30m"    // Black bold
 #define Cyan_b "\033[1;36m"     // Cyan bold
 #define Blue_b "\033[1;34m"     // Blue bold
@@ -27,9 +27,15 @@
 #define Black_back "\033[40m"   // Black
 #define White_back "\033[47m"   // White
 #define Blue_back "\033[44m"    // Blue
+#define Cyan_back "\033[46m"    // Cyan
+#define Green_back "\033[42m"   // Green
+#define Red_back  "\033[41m"    // Red
+
 
 // Formatting off
-#define Reset "\033[0m"         
+#define Reset "\033[0m"    
+
+using namespace std::chrono_literals; // For timer, ms
 
 namespace uav_landing_cpp
 {
@@ -89,6 +95,15 @@ class LandingActionServer : public rclcpp::Node
             twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(
                 "/x500_1/aircraft/cmd_vel", 10
             );
+
+            // Create publishers
+            int_publisher_alive = this->create_publisher<std_msgs::msg::Int8>(
+                "/x500_1/aircraft/server_alive", 10
+            );
+
+            // Create a timer
+            timer_alive = this->create_wall_timer(
+                100ms, std::bind(&LandingActionServer::timer_callback, this));  // If changing this, change also variable timer_period in the code
             
             // Set a proportional gain
             Kp = 0.5;
@@ -125,6 +140,8 @@ class LandingActionServer : public rclcpp::Node
             twist_msg.angular.y = 0;
             twist_msg.angular.z = 0;
 
+            Int8_msg_alive.data = 0;    // Server alive message
+
             // Setting variable for indicating end of landing
             landing_ind = 2;    /*  2 - landig was started but position of the drone is less than landing_high_limit, 
                                     0 - FALSE,landing was started but position of the drone is more than landing_high_limit, 
@@ -155,6 +172,13 @@ class LandingActionServer : public rclcpp::Node
 
     private:
         rclcpp_action::Server<Landing>::SharedPtr action_server_;
+
+        // Timer method for publishing alive messages
+        void timer_callback()
+        {
+            int_publisher_alive->publish(Int8_msg_alive);
+            Int8_msg_alive.data++;
+        }
 
         // Processing the abort messages
         void poseCallback_s(const std_msgs::msg::Int8::SharedPtr msg_s) 
@@ -554,9 +578,9 @@ class LandingActionServer : public rclcpp::Node
                 result->status_code = 2;    // Goal aborted
 
                 if(goal_abort_difference == 1)
-                    RCLCPP_INFO(this->get_logger(), Red_b "Goal was aborted -- HIGH DIFFERENCE --" Reset);
+                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "Goal was aborted -- HIGH DIFFERENCE --" Reset);
                 else if(goal_abort_detector == 1)
-                    RCLCPP_INFO(this->get_logger(), Red_b "Goal was aborted -- DETECTOR ABSENCE --" Reset);
+                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "Goal was aborted -- DETECTOR ABSENCE --" Reset);
 
                 goal_handle->abort(result);
 
@@ -607,7 +631,10 @@ class LandingActionServer : public rclcpp::Node
         rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_4;
         rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr pose_subscriber_5;
         rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr twist_publisher_;
+        rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_alive;
         geometry_msgs::msg::Twist twist_msg;
+        std_msgs::msg::Int8 Int8_msg_alive;
+        rclcpp::TimerBase::SharedPtr timer_alive;
 };
 
 }
