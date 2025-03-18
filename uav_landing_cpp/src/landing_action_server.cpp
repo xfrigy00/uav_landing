@@ -140,7 +140,7 @@ class LandingActionServer : public rclcpp::Node
             twist_msg.angular.y = 0;
             twist_msg.angular.z = 0;
 
-            Int8_msg_alive.data = 0;    // Server alive message
+            Int8_msg_alive.data = 5;    // Server alive message, 5 because action client "previous value" is starting from 1
 
             // Setting variable for indicating end of landing
             landing_ind = 2;    /*  2 - landig was started but position of the drone is less than landing_high_limit, 
@@ -228,7 +228,7 @@ class LandingActionServer : public rclcpp::Node
                twist_msg.linear.z = 0.0;
                
                RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f", twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
-               RCLCPP_INFO(this->get_logger(), Red_b "Goal was aborted -- DETECTOR ABSENCE --" Reset);
+               RCLCPP_INFO(this->get_logger(), Red_b "Goal was aborted --- DETECTOR ABSENCE ---" Reset);
 
                twist_publisher_->publish(twist_msg);
            }
@@ -241,7 +241,7 @@ class LandingActionServer : public rclcpp::Node
                twist_msg.linear.z = 0.0;
                
                RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f", twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
-               RCLCPP_INFO(this->get_logger(), Red_b "Goal was aborted -- HIGH DIFFERENCE --" Reset);
+               RCLCPP_INFO(this->get_logger(), Red_b "Goal was aborted --- HIGH DIFFERENCE ---" Reset);
 
                twist_publisher_->publish(twist_msg);
            }
@@ -354,7 +354,7 @@ class LandingActionServer : public rclcpp::Node
                     
                     //RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "diff_x = %.2f, diff_y = %.2f, diff_x_old = %.2f, diff_y_old = %.2f, x = %.2f, y = %.2f,", diff_x, diff_y, diff_x_old, diff_y_old, x ,y);
                     
-                    // If goal was aborted, abort the goal
+                    // Abort the goal
                     // diff_threshold and (- diff_threshold) are because in diff_(x, y, z) = (x, y, z) - diff_(x, y, z)_old; above is not absolute value
                     if(diff_x > diff_threshold || diff_x < -diff_threshold || diff_y > diff_threshold || diff_y < -diff_threshold || diff_z > diff_threshold || diff_z < -diff_threshold)
                         goal_abort_difference = 1;
@@ -578,9 +578,9 @@ class LandingActionServer : public rclcpp::Node
                 result->status_code = 2;    // Goal aborted
 
                 if(goal_abort_difference == 1)
-                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "Goal was aborted -- HIGH DIFFERENCE --" Reset);
+                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "Goal was aborted --- HIGH DIFFERENCE ---" Reset);
                 else if(goal_abort_detector == 1)
-                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "Goal was aborted -- DETECTOR ABSENCE --" Reset);
+                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "Goal was aborted --- DETECTOR ABSENCE ---" Reset);
 
                 goal_handle->abort(result);
 

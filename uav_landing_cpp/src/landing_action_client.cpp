@@ -1,5 +1,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/twist.hpp>
 #include <std_msgs/msg/int8.hpp>
 
 #include "uav_landing/action/landing.hpp"
@@ -98,6 +99,11 @@ namespace uav_landing_cpp
                 timer_ = this->create_wall_timer(
                     500ms, std::bind(&LandingActionClient::timer_callback, this));  // If changing this, change also variable timer_period in the code
 
+                // Create a publisher
+                twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(
+                    "/x500_1/aircraft/cmd_vel", 10
+                );
+
                 timer_period = 0.5;          // Timer period in seconds
 
                 msg_time_prev_0 = -1;        // Variable with previous time stamp
@@ -118,7 +124,7 @@ namespace uav_landing_cpp
                 counter_ND_m = 0;            // Counter of non-detection of the middle-sized marker
                 counter_ND_b = 0;            // Counter of non-detection of the biggest marker
                     
-                mark_t_abort = 10;              // Time in seconds after which the goal is abortled
+                mark_t_abort = 4;              // Time in seconds after which the goal is abortled
                 mark_t_abort = mark_t_abort / timer_period;             // How many times timer must be called to reach mark_t_abort seconds
 
                 server_t_abort = 3;            // Time in seconds after which the action server is not ready
@@ -133,6 +139,14 @@ namespace uav_landing_cpp
 
                 alive_check_new = 1;            // New alive check message
                 alive_check_prev = 1;           // Previous alive check message
+
+                // Create a Twist message
+                twist_msg.linear.x = 0;
+                twist_msg.linear.y = 0;
+                twist_msg.linear.z = 0;
+                twist_msg.angular.x = 0;
+                twist_msg.angular.y = 0;
+                twist_msg.angular.z = 0;
 
                 RCLCPP_INFO(this->get_logger(), Cyan_b "[INFO] Marker detector action client has started." Reset); // Informing about starting a node
             }
@@ -219,9 +233,10 @@ namespace uav_landing_cpp
             // Processing data after every time period of timer
             void timer_callback()
             {   
-                if(alive_check_new != alive_check_prev) // If new alive check message is different from previous alive check message, action server is ready
+                // If new alive check message is different from previous alive check message, action server is ready
+                if(alive_check_new != alive_check_prev) 
                 {
-                    RCLCPP_INFO(this->get_logger(), Green_back Black_b "[INFO] Action server is ready." Reset);
+                    RCLCPP_INFO(this->get_logger(), Green_back Black_b "[INFO] Action server is connected." Reset);
                     alive_check_prev = alive_check_new;
                 }
                 else
@@ -230,9 +245,15 @@ namespace uav_landing_cpp
                     
                     if(client_nr >= server_t_abort)
                     {
-                        RCLCPP_INFO(this->get_logger(), Red_back Black_b "[INFO] Velocities to 0.0" Reset);
-                        RCLCPP_INFO(this->get_logger(), Red_back Black_b "[INFO] Goal was canceled -- NO ACTION SERVER --" Reset);
+                        twist_msg.linear.x = 0.0;       
+                        twist_msg.linear.y = 0.0;
+                        twist_msg.linear.z = 0.0;
                         
+                        RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f", twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
+                        RCLCPP_INFO(this->get_logger(), Red_back Black_b "[INFO] Goal was canceled --- ACTION SERVER WAS DISCONNECTED ---" Reset);
+                        
+                        twist_publisher_->publish(twist_msg);
+
                         rclcpp::shutdown();
                         return;
                     }
@@ -264,10 +285,10 @@ namespace uav_landing_cpp
                     if(counter_ND_s >= mark_t_abort)     // If time of counter of non-detection of the smallest marker equals or is greater than time mark_t_abort seconds
                         smallest_abort = 1;                // Cancel the goal
                     
-                    counter_ND_s++;                         // Incrementing counter of non-detection of the smallest marker
                     Int8_msg_3.data = smallest_abort; 
-
+                        
                     RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Smallest marker was NOT detected for %.2f secs." Reset, counter_ND_s * timer_period);
+                    counter_ND_s++;                         // Incrementing counter of non-detection of the smallest marker
                 }
 
                 auto Int8_msg_4 = std_msgs::msg::Int8();
@@ -295,10 +316,10 @@ namespace uav_landing_cpp
                     if(counter_ND_m >= mark_t_abort)     // If time of counter of non-detection of the middle - sized marker equals or is greater than time mark_t_abort seconds
                         middle_abort = 1;                // Cancel the goal
                 
-                    counter_ND_m++;                         // Incrementing counter of non-detection of the middle - sized marker
                     Int8_msg_4.data = middle_abort; 
-
+                        
                     RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Middle - sized marker was NOT detected for %.2f secs." Reset, counter_ND_m * timer_period);
+                    counter_ND_m++;                         // Incrementing counter of non-detection of the middle - sized marker
                 }
 
                 auto Int8_msg_5 = std_msgs::msg::Int8();
@@ -326,15 +347,15 @@ namespace uav_landing_cpp
                     if(counter_ND_b >= mark_t_abort)     // If time of counter of non-detection of the biggest marker equals or is greater than time mark_t_abort seconds
                         biggest_abort = 1;                // Cancel the goal
                 
-                    counter_ND_b++;                         // Incrementing counter of non-detection of the biggest marker
                     Int8_msg_5.data = biggest_abort; 
-
+                        
                     RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Biggest marker was NOT detected for %.2f secs." Reset, counter_ND_b * timer_period);
+                    counter_ND_b++;                         // Incrementing counter of non-detection of the biggest marker
                 }
 
-                if(counter_ND_b >= mark_t_abort && counter_ND_m >= mark_t_abort && counter_ND_s >= mark_t_abort)
+                if(counter_ND_b > mark_t_abort && counter_ND_m > mark_t_abort && counter_ND_s > mark_t_abort)
                 {
-                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "[INFO] --- Aborting the goal because of non - detection of the markers ---" Reset);
+                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "[INFO] --- Cancelling the goal because of non - detection of the markers ---" Reset);
                     rclcpp::shutdown();
                     return;
                 }
@@ -343,7 +364,6 @@ namespace uav_landing_cpp
                 auto Int8_msg_0 = std_msgs::msg::Int8();
                 auto Int8_msg_1 = std_msgs::msg::Int8();
                 auto Int8_msg_2 = std_msgs::msg::Int8();
-
                 
                 // Fill and publish an Int8 message
                 Int8_msg_0.data = marker_detected_0; 
@@ -395,7 +415,7 @@ namespace uav_landing_cpp
             // Member variables for times, subscribers and publishers
             int goal_sent;
             double mark_t_abort;
-            double server_t_abort;
+            double server_t_abort;      // Threshold time in seconds after which the action server is not ready (converted to timer repeats)
             int counter_ND_s;           // Counter of non - detection of the smallest marker
             int counter_ND_m;           // Counter of non - detection of the middle-sized marker
             int counter_ND_b;           // Counter of non - detection of the biggest marker
@@ -418,6 +438,8 @@ namespace uav_landing_cpp
             rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_3;
             rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_4;
             rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher_5;
+            rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr twist_publisher_;
+            geometry_msgs::msg::Twist twist_msg;
     };
 }   // namespace
 
