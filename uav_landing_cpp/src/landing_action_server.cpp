@@ -31,9 +31,15 @@
 #define Green_back "\033[42m"   // Green
 #define Red_back  "\033[41m"    // Red
 
+// Choosing a mode
+#define MODE 0 // 0 - 2 in 1 marker, 1 - Cascade of 3 Markers
 
 // Formatting off
 #define Reset "\033[0m"    
+
+//                          //
+//      Check TO_EDIT       //
+//                          //
 
 using namespace std::chrono_literals; // For timer, ms
 
@@ -233,7 +239,7 @@ class LandingActionServer : public rclcpp::Node
                twist_publisher_->publish(twist_msg);
            }
 
-           // Goal was aborted because of high difference
+           // Goal was aborted because of inconsistent detection
            if(goal_abort_difference == 1)
            {
                twist_msg.linear.x = 0.0;       
@@ -241,7 +247,7 @@ class LandingActionServer : public rclcpp::Node
                twist_msg.linear.z = 0.0;
                
                RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f", twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
-               RCLCPP_INFO(this->get_logger(), Red_b "Goal was aborted --- HIGH DIFFERENCE ---" Reset);
+               RCLCPP_INFO(this->get_logger(), Red_b "Goal was aborted --- INCONSISTENT DETECTION ---" Reset);
 
                twist_publisher_->publish(twist_msg);
            }
@@ -251,7 +257,8 @@ class LandingActionServer : public rclcpp::Node
                 // Initialize x and y
                 double x = 0;
                 double y = 0;
-
+                
+                #if MODE
                 // Marker sizes [m]
                 double big_marker_s = 0.78;
                 double middle_marker_s = 0.58;
@@ -268,6 +275,7 @@ class LandingActionServer : public rclcpp::Node
                 // From sizes of landing markers, the landing point is (big_marker_s + middle_marker_s) / 2 [m] for x axe and big_marker_s / 2 [m] for y axe
                 double middle_x = (big_marker_s + middle_marker_s) / 2;
                 double middle_y = big_marker_s / 2;
+                #endif
 
                 /*
                 Marker layout - all markers are squares
@@ -287,13 +295,21 @@ class LandingActionServer : public rclcpp::Node
                 2 - Smallest marker
                 */
 
+                #if MODE
                 double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
                 double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
                 double level_2 = 3;                     // 3 m height for landing
                 double level_1 = 1.5;                   // 1.5 m height for landing
+                #else
+                double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
+                double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
+                double level_2 = 3;                     // 3 m height for landing
+                double level_1 = 1;                   // TO_EDIT m height for landing
+                #endif
 
                 // Determining desired distance from marker in axes x and y
                 // Because of velocity_x = velocity_x * (-1); below also mutiplying "* (-1)" needs to be here
+                #if MODE
                 if(z > level_2)                         // Detecting the biggest marker but descending to middle-sized marker
                 {
                     horizontal_dev_x = (big_marker_pos_x - middle_x) * (-1);
@@ -311,6 +327,10 @@ class LandingActionServer : public rclcpp::Node
                     horizontal_dev_x = (small_marker_pos_x - middle_x) * (-1);
                     horizontal_dev_y = (small_marker_pos_y - middle_y) * (-1);
                 }
+                #else
+                horizontal_dev_x = 0;
+                horizontal_dev_y = 0;
+                #endif
 
                 // Cancelling the goal because of non - detection of the markers
                 if(z > level_2 && poseCallback_b_var == 1) // Marker was not detected
@@ -572,13 +592,13 @@ class LandingActionServer : public rclcpp::Node
                 loop_rate.sleep();
             }
             
-            // Cancelling because of high difference or absence of the detector
+            // Cancelling because of inconsistent detection or absence of the detector
             if(goal_abort_difference == 1 || goal_abort_detector == 1)
             {
                 result->status_code = 2;    // Goal aborted
 
                 if(goal_abort_difference == 1)
-                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "Goal was aborted --- HIGH DIFFERENCE ---" Reset);
+                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "Goal was aborted --- INCONSISTENT DETECTION ---" Reset);
                 else if(goal_abort_detector == 1)
                     RCLCPP_INFO(this->get_logger(), Red_back Black_b "Goal was aborted --- DETECTOR ABSENCE ---" Reset);
 
