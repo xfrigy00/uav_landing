@@ -197,7 +197,10 @@ class LandingActionServer : public rclcpp::Node
         {
             if(msg_s->data == 1) // Marker was not detected
                 poseCallback_s_var = 1;
+            else
+                poseCallback_s_var = 0;
 
+            //RCLCPP_INFO(this->get_logger(), "poseCallback_s_var = %d", poseCallback_s_var);
             //RCLCPP_INFO(this->get_logger(), "poseCallback_s msg_s->data = %d", msg_s->data);
         }
 
@@ -206,7 +209,10 @@ class LandingActionServer : public rclcpp::Node
         {
             if(msg_m->data == 1) // Marker was not detected
                 poseCallback_m_var = 1;
+            else
+                poseCallback_m_var = 0;
 
+            //RCLCPP_INFO(this->get_logger(), "poseCallback_m_var = %d", poseCallback_m_var);
             //RCLCPP_INFO(this->get_logger(), "poseCallback_m msg_m->data = %d", msg_m->data);
         }
 
@@ -215,8 +221,11 @@ class LandingActionServer : public rclcpp::Node
         {
             if(msg_b->data == 1) // Marker was not detected
                 poseCallback_b_var = 1;
+            else
+                poseCallback_b_var = 0;
                 
-                //RCLCPP_INFO(this->get_logger(), "poseCallback_b msg_b->data = %d", msg_b->data);
+            //RCLCPP_INFO(this->get_logger(), "poseCallback_b_var = %d", poseCallback_b_var);
+            //RCLCPP_INFO(this->get_logger(), "poseCallback_b msg_b->data = %d", msg_b->data);
             }
 
         // Processing the pose messages
@@ -284,6 +293,21 @@ class LandingActionServer : public rclcpp::Node
                     // From sizes of landing markers, the landing point is (big_marker_s + middle_marker_s) / 2 [m] for x axe and big_marker_s / 2 [m] for y axe
                     double middle_x = (big_marker_s + white_bm_ms + middle_marker_s) / 2;
                     double middle_y = big_marker_s / 2;
+                #else
+                    // Marker sizes [m]
+                    double big_marker_s = 0.428;
+                    //double small_marker_s = 0.1;    // Unused
+
+                    // Marker positions [m]
+                    // double big_marker_pos_x = big_marker_s / 2;  // Unused
+                    //double big_marker_pos_y = big_marker_s / 2;   // Unused
+                    double small_marker_pos_x = 0.134;
+                    double gap_bs = 0.083;                           // Gap between the biggest marker and the smallest marker
+                    double small_marker_pos_y = big_marker_s - gap_bs - small_marker_pos_x / 2; // Small marker is exactly in the middle of the biggest marker'r white space
+
+                    // From sizes of landing markers, the landing point position is in the middle of the big marker
+                    double middle_x = big_marker_s / 2;
+                    double middle_y = big_marker_s / 2;
                 #endif
 
                 /*
@@ -311,13 +335,13 @@ class LandingActionServer : public rclcpp::Node
                 #if MODE
                     double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
                     double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
-                    double level_2 = 2.25;                     // 2.25 m height for landing
+                    double level_2 = 2.25;                  // 2.25 m height for landing
                     double level_1 = 0.8;                   // 1 m height for landing
                 #else
                     double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
                     double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
-                    double level_2 = 2;                     // height for landing
-                    double level_1 = 0;                   // TO_EDIT m height for landing
+                    double level_2 = 0.8;                   // height for landing
+                    double level_1 = 0;                     // Unused but for consistency
                 #endif
 
                 // Determining desired distance from marker in axes x and y
@@ -339,8 +363,16 @@ class LandingActionServer : public rclcpp::Node
                         horizontal_dev_y = (small_marker_pos_y - middle_y) * (-1);
                     }
                 #else
-                    horizontal_dev_x = 0;
-                    horizontal_dev_y = 0;
+                    if(z > level_2)                         // Detecting the biggest marker but descending to middle
+                    {
+                        horizontal_dev_x = 0;
+                        horizontal_dev_y = 0;
+                    }
+                    else                                    // Detecting smallest marker
+                    {
+                        horizontal_dev_x = (small_marker_pos_x - middle_x) * (-1);
+                        horizontal_dev_y = (small_marker_pos_y - middle_y) * (-1);
+                    }
                 #endif
 
                 double no_inp_bord = 0.15;          // Border for interval without input [m]
@@ -385,7 +417,7 @@ class LandingActionServer : public rclcpp::Node
                     horizontal_dev_x = temp_hor_x * cos(angle_rot / 180 * M_PI) - temp_hor_y * sin(angle_rot / 180 * M_PI); // New x coordinate for deviation in x axe .. Rotation matrix
                     horizontal_dev_y = temp_hor_x * sin(angle_rot / 180 * M_PI) + temp_hor_y * cos(angle_rot / 180 * M_PI); // New y coordinate for deviation in y axe .. Rotation matrix
 
-                    RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "horizontal_dev_x = %.2f, horizontal_dev_y = %.2f", horizontal_dev_x, horizontal_dev_y);
+                    //RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "horizontal_dev_x = %.2f, horizontal_dev_y = %.2f", horizontal_dev_x, horizontal_dev_y);
 
                     x = msg->pose.position.x + horizontal_dev_x;
                     y = msg->pose.position.y + horizontal_dev_y;
@@ -505,12 +537,21 @@ class LandingActionServer : public rclcpp::Node
 
                     // Landing speed
                     double z_landing_vel = 0;
-                    if (z > level_2)
-                        z_landing_vel = -0.2;	
-                    else if ((z <= level_2) && (z >= level_1))
-                        z_landing_vel = -0.15;	
-                    else
-                        z_landing_vel = -0.1;	
+                    #if MODE
+                        if (z > level_2)
+                            z_landing_vel = -0.2;	
+                        else if ((z <= level_2) && (z >= level_1))
+                            z_landing_vel = -0.15;	
+                        else
+                            z_landing_vel = -0.1;
+                    #else
+                        double safety_level = 1; // For lowering the speed of landing
+
+                        if (z > level_2 + safety_level)
+                            z_landing_vel = -0.2;	
+                        else
+                            z_landing_vel = -0.1;
+                    #endif	
 
                     double z_landing_vel_stop = 0.0; 	// Landing speed
                     double landing_high_limit = target_height;	    // Stop decreasing when this level is reached [m]

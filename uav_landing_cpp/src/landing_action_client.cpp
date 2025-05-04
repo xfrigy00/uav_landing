@@ -26,6 +26,9 @@
 #define Green_back "\033[42m"    // Green
 #define Red_back  "\033[41m"    // Red
 
+// Choosing a mode
+#define MODE 1 // 0 - 2 in 1 marker, 1 - Cascade of 3 Markers
+
 // Formatting off
 #define Reset "\033[0m"         
 
@@ -260,12 +263,14 @@ namespace uav_landing_cpp
                     client_nr++;
                 }
                 
+                #if MODE
                 auto Int8_msg_3 = std_msgs::msg::Int8();    // Creating an Int8 message
                 Int8_msg_3.data = smallest_abort;   
                 if(msg_time_actual_0 != msg_time_prev_0)    // If actual time stamp value is different from previous time stamp value, marker is detected
                 {
                     counter_ND_s = 0;
                     smallest_abort = 0;
+                    Int8_msg_3.data = smallest_abort; 
 
                     marker_detected_0 = 1;
                     msg_time_prev_0 = msg_time_actual_0;
@@ -282,6 +287,7 @@ namespace uav_landing_cpp
                 {
                     marker_detected_0 = 0;                  // If actual time stamp value is same as previous time stamp value, marker is not detected
 
+                    //RCLCPP_INFO(this->get_logger(), Red_b "[INFO] counter_ND_s = %d, mark_t_abort = %f", counter_ND_s, mark_t_abort);
                     if(counter_ND_s >= mark_t_abort)     // If time of counter of non-detection of the smallest marker equals or is greater than time mark_t_abort seconds
                         smallest_abort = 1;                // Cancel the goal
                     
@@ -290,6 +296,7 @@ namespace uav_landing_cpp
                     RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Smallest marker was NOT detected for %.2f secs." Reset, counter_ND_s * timer_period);
                     counter_ND_s++;                         // Incrementing counter of non-detection of the smallest marker
                 }
+                #endif
 
                 auto Int8_msg_4 = std_msgs::msg::Int8();
                 Int8_msg_4.data = middle_abort;
@@ -297,6 +304,7 @@ namespace uav_landing_cpp
                 {   
                     counter_ND_m = 0;
                     middle_abort = 0;
+                    Int8_msg_4.data = middle_abort;
 
                     marker_detected_1 = 1;
                     msg_time_prev_1 = msg_time_actual_1;
@@ -312,7 +320,8 @@ namespace uav_landing_cpp
                 else
                 {
                     marker_detected_1 = 0;                  // If actual time stamp value is same as previous time stamp value, marker is not detected
-
+                    
+                    //RCLCPP_INFO(this->get_logger(), Red_b "[INFO] counter_ND_m = %d, mark_t_abort = %f", counter_ND_m, mark_t_abort);
                     if(counter_ND_m >= mark_t_abort)     // If time of counter of non-detection of the middle - sized marker equals or is greater than time mark_t_abort seconds
                         middle_abort = 1;                // Cancel the goal
                 
@@ -328,6 +337,7 @@ namespace uav_landing_cpp
                 {
                     counter_ND_b = 0;
                     biggest_abort = 0;
+                    Int8_msg_5.data = biggest_abort;
 
                     marker_detected_2 = 1;
                     msg_time_prev_2 = msg_time_actual_2;
@@ -344,6 +354,7 @@ namespace uav_landing_cpp
                 {
                     marker_detected_2 = 0;                  // If actual time stamp value is same as previous time stamp value, marker is not detected
 
+                    //RCLCPP_INFO(this->get_logger(), Red_b "[INFO] counter_ND_b = %d, mark_t_abort = %f", counter_ND_b, mark_t_abort);
                     if(counter_ND_b >= mark_t_abort)     // If time of counter of non-detection of the biggest marker equals or is greater than time mark_t_abort seconds
                         biggest_abort = 1;                // Cancel the goal
                 
@@ -378,7 +389,9 @@ namespace uav_landing_cpp
                 int_publisher_2->publish(Int8_msg_2);
                 
                 // Publish an Int8 message of aborling the goal because of non - detection of the markers
-                int_publisher_3->publish(Int8_msg_3);
+                #if MODE
+                    int_publisher_3->publish(Int8_msg_3);
+                #endif
                 int_publisher_4->publish(Int8_msg_4);
                 int_publisher_5->publish(Int8_msg_5);
             }
