@@ -168,7 +168,7 @@ namespace uav_landing_cpp
                 }
 
                 auto goal_msg = Landing::Goal();
-                goal_msg.target_height = 1.0;
+                goal_msg.target_height = 0.6; //TO_EDIT
 
                 RCLCPP_INFO(this->get_logger(), "Sending goal: %.2f", goal_msg.target_height);
 
@@ -274,7 +274,7 @@ namespace uav_landing_cpp
                     if (goal_sent == 0 && allow_client == 1)
                     {
                         this->send_goal();
-                        RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Smallest marker detected, SENDING GOAL." Reset);
+                        //RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Smallest marker detected." Reset);
                         goal_sent = 1;
                     }
                 }
@@ -305,7 +305,7 @@ namespace uav_landing_cpp
                     if (goal_sent == 0 && allow_client == 1)
                     {
                         this->send_goal();
-                        RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Middle - sized marker detected, SENDING GOAL." Reset);
+                        //RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Middle - sized marker detected." Reset);
                         goal_sent = 1;
                     }
                 }
@@ -336,7 +336,7 @@ namespace uav_landing_cpp
                     if (goal_sent == 0 && allow_client == 1)
                     {
                         this->send_goal();
-                        RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Biggest marker detected, SENDING GOAL." Reset);
+                        //RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Biggest marker detected." Reset);
                         goal_sent = 1;
                     }
                 }

@@ -42,6 +42,11 @@ install(DIRECTORY
 
 #>>
 
+install(
+  DIRECTORY calibrationdata_pinhole
+  DESTINATION share/${PROJECT_NAME}
+)
+
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}

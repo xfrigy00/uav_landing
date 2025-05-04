@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <thread>
+#include <cmath>
 
 #include "uav_landing/action/landing.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -32,7 +33,7 @@
 #define Red_back  "\033[41m"    // Red
 
 // Choosing a mode
-#define MODE 0 // 0 - 2 in 1 marker, 1 - Cascade of 3 Markers
+#define MODE 1 // 0 - 2 in 1 marker, 1 - Cascade of 3 Markers
 
 // Formatting off
 #define Reset "\033[0m"    
@@ -121,7 +122,12 @@ class LandingActionServer : public rclcpp::Node
             desired_vel_y = 0;
             actual_vel_x = 0;       // Actual velocity  
             actual_vel_y = 0;
-            z = 0;                  // Height of a drone 
+            z = 0;                  // Height of a drone
+            x_orient = 0;           // Orientation in x axe
+            y_orient = 0;           // Orientation in y axe
+            z_orient = 0;           // Orientation in z axe
+            w_orient = 0;           // Orientation in w axe
+            angle_rot = 0;
             target_height = 0;     
             goal_got = 0;           // Variable for detecting if an action goal was received
             goal_abort = 0;
@@ -259,108 +265,133 @@ class LandingActionServer : public rclcpp::Node
                 double y = 0;
                 
                 #if MODE
-                // Marker sizes [m]
-                double big_marker_s = 0.78;
-                double middle_marker_s = 0.58;
-                double small_marker_s = 0.15;
+                    // Marker sizes [m]
+                    double big_marker_s = 0.428;
+                    double middle_marker_s = 0.212;
+                    double small_marker_s = 0.129;
 
-                // Marker positions [m]
-                double big_marker_pos_x = big_marker_s / 2;
-                double big_marker_pos_y = big_marker_s / 2;
-                double middle_marker_pos_x = big_marker_s + middle_marker_s / 2;
-                double middle_marker_pos_y = big_marker_s - middle_marker_s / 2;
-                double small_marker_pos_x = big_marker_s + small_marker_s / 2;
-                double small_marker_pos_y = big_marker_s - middle_marker_s - small_marker_s / 2;
+                    // White gap [m]
+                    double white_bm_ms = 0.039; // White space between big and middle marker and at the same time between medium and small marker
 
-                // From sizes of landing markers, the landing point is (big_marker_s + middle_marker_s) / 2 [m] for x axe and big_marker_s / 2 [m] for y axe
-                double middle_x = (big_marker_s + middle_marker_s) / 2;
-                double middle_y = big_marker_s / 2;
+                    // Marker positions [m]
+                    double big_marker_pos_x = big_marker_s / 2;
+                    //double big_marker_pos_y = big_marker_s / 2; // Unused
+                    double middle_marker_pos_x = big_marker_s + white_bm_ms + middle_marker_s / 2;
+                    double middle_marker_pos_y = big_marker_s - middle_marker_s / 2;
+                    double small_marker_pos_x = big_marker_s + white_bm_ms + small_marker_s / 2;
+                    double small_marker_pos_y = big_marker_s - middle_marker_s - white_bm_ms - small_marker_s / 2;
+
+                    // From sizes of landing markers, the landing point is (big_marker_s + middle_marker_s) / 2 [m] for x axe and big_marker_s / 2 [m] for y axe
+                    double middle_x = (big_marker_s + white_bm_ms + middle_marker_s) / 2;
+                    double middle_y = big_marker_s / 2;
                 #endif
 
                 /*
                 Marker layout - all markers are squares
                 An image ↓↓↓ is for reference only
 
-                000000000000
-                000000000000222
-                000000000000222
-                00000000X00011111
-                00000000000011111
-                00000000000011111
-                00000000000011111
+                XXXXXXXXXXXXXXXXXXXX
+                X000000000000XXXXXXX
+                X000000000000X222XXX
+                X000000000000X222XXX
+                X000000000000XXXXXXX
+                X00000000X000X11111X
+                X000000000000X11111X
+                X000000000000X11111X
+                X000000000000X11111X
+                XXXXXXXXXXXXXXXXXXXX
 
                 X - Landing point - middle of the object of markers
                 0 - Biggest marker
                 1 - Middle-sized marker
                 2 - Smallest marker
+                X - White gap
                 */
 
                 #if MODE
-                double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
-                double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
-                double level_2 = 3;                     // 3 m height for landing
-                double level_1 = 1.5;                   // 1.5 m height for landing
+                    double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
+                    double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
+                    double level_2 = 2.25;                     // 2.25 m height for landing
+                    double level_1 = 0.8;                   // 1 m height for landing
                 #else
-                double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
-                double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
-                double level_2 = 3;                     // 3 m height for landing
-                double level_1 = 1;                   // TO_EDIT m height for landing
+                    double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
+                    double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
+                    double level_2 = 2;                     // height for landing
+                    double level_1 = 0;                   // TO_EDIT m height for landing
                 #endif
 
                 // Determining desired distance from marker in axes x and y
                 // Because of velocity_x = velocity_x * (-1); below also mutiplying "* (-1)" needs to be here
                 #if MODE
-                if(z > level_2)                         // Detecting the biggest marker but descending to middle-sized marker
-                {
-                    horizontal_dev_x = (big_marker_pos_x - middle_x) * (-1);
-                    horizontal_dev_y = (big_marker_pos_y - middle_y) * (-1);
-                    //horizontal_dev_x = 0;
-                    //horizontal_dev_y = 0;
-                }
-                else if (z <= level_2 && z >= level_1)  // Detecting middle-sized marker but descending smallest
-                {
-                    horizontal_dev_x = (middle_marker_pos_x - middle_x) * (-1);
-                    horizontal_dev_y = (middle_marker_pos_y - middle_y) * (-1);
-                }
-                else                                    // Detecting smallest marker and descending to smallest marker
-                {
-                    horizontal_dev_x = (small_marker_pos_x - middle_x) * (-1);
-                    horizontal_dev_y = (small_marker_pos_y - middle_y) * (-1);
-                }
+                    if(z > level_2)                         // Detecting the biggest marker but descending to middle
+                    {
+                        horizontal_dev_x = (big_marker_pos_x - middle_x) * (-1);
+                        horizontal_dev_y = 0;
+                    }
+                    else if (z <= level_2 && z >= level_1)  // Detecting middle-sized marker
+                    {
+                        horizontal_dev_x = (middle_marker_pos_x - middle_x) * (-1);
+                        horizontal_dev_y = (middle_marker_pos_y - middle_y) * (-1);
+                    }
+                    else                                    // Detecting smallest marker
+                    {
+                        horizontal_dev_x = (small_marker_pos_x - middle_x) * (-1);
+                        horizontal_dev_y = (small_marker_pos_y - middle_y) * (-1);
+                    }
                 #else
-                horizontal_dev_x = 0;
-                horizontal_dev_y = 0;
+                    horizontal_dev_x = 0;
+                    horizontal_dev_y = 0;
                 #endif
 
+                double no_inp_bord = 0.15;          // Border for interval without input [m]
                 // Cancelling the goal because of non - detection of the markers
-                if(z > level_2 && poseCallback_b_var == 1) // Marker was not detected
+                if(z > level_2 - no_inp_bord && poseCallback_b_var == 1) // Marker was not detected
                 {
                     goal_abort_detector = 1;
                     //RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Goal aborted because of non-detection of the biggest marker." Reset);
                 }
-                else if(z <= level_2 && z >= level_1 && poseCallback_m_var == 1) // Marker was not detected
+                else if(z <= level_2 - no_inp_bord && z >= level_1 && poseCallback_m_var == 1) // Marker was not detected
                 {
                     goal_abort_detector = 1;
                     //RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Goal aborted because of non-detection of the middle - sized marker." Reset);
                 }
-                else if(z < level_1 && poseCallback_s_var == 1) // Marker was not detected
+                else if(z < level_1 - no_inp_bord && poseCallback_s_var == 1) // Marker was not detected
                 {
                     goal_abort_detector = 1;
                     //RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Goal aborted because of non-detection of the smallest marker." Reset);
                 }
                 
-
                 // Decide which state is active
                 // Camera coordinates: x: →, y: ↓
                 // If more than level_2 m, between level_2 and level_1 m or below level_1 m
                 // Load x and y positions from the PoseStamped message
                 if((z > level_2 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_2") || (z <= level_2 && z >= level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_1") || (z < level_1 && msg->header.frame_id == "stereo_gazebo_left_camera_optical_frame_0"))
                 {
+                    // Rotation consideration
+                    x_orient = msg->pose.orientation.x;
+                    y_orient = msg->pose.orientation.y;
+                    z_orient = msg->pose.orientation.z;
+                    w_orient = msg->pose.orientation.w;
+
+                    double siny_cosp = 2 * (w_orient * z_orient + x_orient * y_orient);
+                    double cosy_cosp = 1 - 2 * (y_orient * y_orient + z_orient * z_orient);
+                    double yaw_rad = std::atan2(siny_cosp, cosy_cosp); // yaw (z-axis rotation)
+                    double yaw_deg = yaw_rad * 180.0 / M_PI;
+                    angle_rot = yaw_deg + 360; // Angle of rotation in z axe
+                    //RCLCPP_INFO(this->get_logger(), "Yaw (deg), angle_rot: %.2f", angle_rot);
+
+                    double temp_hor_x = horizontal_dev_x; // Temporary variable for rotation
+                    double temp_hor_y = horizontal_dev_y; // Temporary variable for rotation
+                    horizontal_dev_x = temp_hor_x * cos(angle_rot / 180 * M_PI) - temp_hor_y * sin(angle_rot / 180 * M_PI); // New x coordinate for deviation in x axe .. Rotation matrix
+                    horizontal_dev_y = temp_hor_x * sin(angle_rot / 180 * M_PI) + temp_hor_y * cos(angle_rot / 180 * M_PI); // New y coordinate for deviation in y axe .. Rotation matrix
+
+                    RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "horizontal_dev_x = %.2f, horizontal_dev_y = %.2f", horizontal_dev_x, horizontal_dev_y);
+
                     x = msg->pose.position.x + horizontal_dev_x;
                     y = msg->pose.position.y + horizontal_dev_y;
                 
                     // Counting difference
-                    double diff_threshold = 0.2;      // Threshold for difference
+                    double diff_threshold = 0.4;      // TO_EDIT Threshold for difference
 
                     // Ignore first difference
                     if(diff_allow == 0)
@@ -460,7 +491,6 @@ class LandingActionServer : public rclcpp::Node
                         }
                     }
 
-
                     // Apply saturation for velocity_x
                     velocity_x = (velocity_x > vel_saturation) ? vel_saturation : velocity_x;
                     velocity_x  = (velocity_x < -vel_saturation) ? -vel_saturation : velocity_x;
@@ -472,15 +502,33 @@ class LandingActionServer : public rclcpp::Node
                     // Fill and publish a Twist message
                     twist_msg.linear.x = velocity_x; 
                     twist_msg.linear.y = velocity_y;
-                    double z_landing_vel = -0.15;		// Landing speed
+
+                    // Landing speed
+                    double z_landing_vel = 0;
+                    if (z > level_2)
+                        z_landing_vel = -0.2;	
+                    else if ((z <= level_2) && (z >= level_1))
+                        z_landing_vel = -0.15;	
+                    else
+                        z_landing_vel = -0.1;	
+
                     double z_landing_vel_stop = 0.0; 	// Landing speed
                     double landing_high_limit = target_height;	    // Stop decreasing when this level is reached [m]
-                    double horizontal_thrshld = 0.03;   // horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
+
+                    // Horizontal threshold
+                    double horizontal_thrshld = 0;   // TO_EDIT horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
+                    if (z > level_2)
+                        horizontal_thrshld = 0.15;	
+                    else if ((z <= level_2) && (z >= level_1))
+                        horizontal_thrshld = 0.1;	
+                    else
+                        horizontal_thrshld = 0.03;	
+
                     double vertical_error = 0.05;       // vertical error of detector for z axe [m]
 
                     // If height in z is more than z_landing_vel_stop height &&
                     // If x or y are in interval (horizontal_thrshld; - horizontal_thrshld), then vertical movement is allowed
-                    double no_inp_bord = 0.05;          // Border for interval without input [m]
+
                     if (((goal_abort == 0) && (z < level_2 + no_inp_bord && z > level_2 - no_inp_bord)) || ((goal_abort == 0) && (z < level_1 + no_inp_bord && z > level_1 - no_inp_bord)))   // Avoiding two inputs and just descending without input
                         twist_msg.linear.z = z_landing_vel;
                     else
@@ -643,6 +691,11 @@ class LandingActionServer : public rclcpp::Node
         float desired_vel_y;
         int landing_ind;
         float z;
+        float x_orient;
+        float y_orient;
+        float z_orient;
+        float w_orient;
+        float angle_rot = 0;
         float target_height;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_0;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_1;
