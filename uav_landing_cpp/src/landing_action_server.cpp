@@ -126,6 +126,11 @@ class LandingActionServer : public rclcpp::Node
 
             // Set a proportional gain
             Kp = 0.5;
+            Ki = 0.0;
+            Kd = 0.0;
+
+            error_x_old = 0;    // Old error in x axe
+            error_y_old = 0;    // Old error in y axe 
 
             // Set initialization for variables used for slow speeding up
             indicator_vel_x = 0;    // indicator_velocity_x == 0 - slow speeding up is needed || 1 - slow speeding up is in progress || 2 - slow speeding up is done
@@ -514,7 +519,7 @@ class LandingActionServer : public rclcpp::Node
                     diff_y_old = y;
                     diff_z_old = z;
 
-                    // P regulator
+                    // PID regulator
                     // World coordinates: x: ↑, y: ←
                     double velocity_x = Kp * y;                 // Velocity in world x coordinate
                     double velocity_y = Kp * x;                 // Velocity in world y coordinate
@@ -762,6 +767,10 @@ class LandingActionServer : public rclcpp::Node
         int poseCallback_m_var;
         int poseCallback_b_var;
         float Kp;
+        float Ki;
+        float Kd;
+        float error_x_old;
+        float error_y_old;
         double velocity_x_timer;
         double velocity_y_timer;
         double diff_x_old;
