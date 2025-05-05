@@ -111,17 +111,31 @@ class LandingActionServer : public rclcpp::Node
             // Create a timer
             timer_alive = this->create_wall_timer(
                 100ms, std::bind(&LandingActionServer::timer_callback, this));  // If changing this, change also variable timer_period in the code
+
+            // Create a timer 
+            timer_ramp_x = this->create_wall_timer(
+                3ms, std::bind(&LandingActionServer::timer_callback_ramp_x, this));
+            timer_ramp_x->cancel(); // Cancel the timer at the beginning
+
+            // Create a timer 
+            timer_ramp_y = this->create_wall_timer(
+                3ms, std::bind(&LandingActionServer::timer_callback_ramp_y, this));
+            timer_ramp_y->cancel(); // Cancel the timer at the beginning
             
+            speed_inc_dec = 0.00025;               // speed adding by speed_inc_dec m / s
+
             // Set a proportional gain
             Kp = 0.5;
 
             // Set initialization for variables used for slow speeding up
             indicator_vel_x = 0;    // indicator_velocity_x == 0 - slow speeding up is needed || 1 - slow speeding up is in progress || 2 - slow speeding up is done
-            indicator_vel_y = 0;
+            indicator_vel_y = 0;    // indicator_velocity_y == 0 - slow speeding up is needed || 1 - slow speeding up is in progress || 2 - slow speeding up is done
             desired_vel_x = 0;      // Desired velocity
             desired_vel_y = 0;
             actual_vel_x = 0;       // Actual velocity  
             actual_vel_y = 0;
+            velocity_x_timer = 0;   // Actual velocity for timer
+            velocity_y_timer = 0;  // Actual velocity for timer
             z = 0;                  // Height of a drone
             x_orient = 0;           // Orientation in x axe
             y_orient = 0;           // Orientation in y axe
@@ -190,6 +204,59 @@ class LandingActionServer : public rclcpp::Node
         {
             int_publisher_alive->publish(Int8_msg_alive);
             Int8_msg_alive.data++;
+        }
+
+        //HHH
+        // Startup acceleration ramp, x
+        void timer_callback_ramp_x()
+        {
+            //RCLCPP_INFO(this->get_logger(), "timer_callback_ramp_x");
+            if(indicator_vel_x == 1)                    // indicator_vel_x == 1 - slow speeding up is in progress
+            {
+                // Increasing or decreasing actual velocity based on desired velocity
+                if(desired_vel_x != actual_vel_x)
+                {
+                    actual_vel_x = (desired_vel_x > actual_vel_x) ? actual_vel_x + speed_inc_dec : actual_vel_x - speed_inc_dec;
+                    velocity_x_timer = actual_vel_x;
+                }
+
+                // Checking if desired velocity was reached
+                if((desired_vel_x >= 0 && velocity_x_timer >= desired_vel_x) || (desired_vel_x <= 0 && velocity_x_timer <= desired_vel_x))
+                {
+                    indicator_vel_x = 2;                // indicator_vel_x == 2 - slow speeding up is done
+
+                    for(int i = 0; i < 5; i++)          // Informing when ramp in x axe is done
+                        RCLCPP_INFO(this->get_logger(), Black_back White_b "[INFO] Ramp y DONE." Reset);
+                        
+                    timer_ramp_x->cancel();                // Cancel the timer
+                }
+            }
+        }
+
+        // Startup acceleration ramp, y
+        void timer_callback_ramp_y()
+        {
+            //RCLCPP_INFO(this->get_logger(), "timer_callback_ramp_x");
+            if(indicator_vel_y == 1)                    // indicator_vel_y == 1 - slow speeding up is in progress
+            {
+                // Increasing or decreasing actual velocity based on desired velocity
+                if(desired_vel_y != actual_vel_y)
+                {
+                    actual_vel_y = (desired_vel_y > actual_vel_y) ? actual_vel_y + speed_inc_dec : actual_vel_y - speed_inc_dec;
+                    velocity_y_timer = actual_vel_y;
+                }
+
+                // Checking if desired velocity was reached
+                if((desired_vel_y >= 0 && velocity_y_timer >= desired_vel_y) || (desired_vel_y <= 0 && velocity_y_timer <= desired_vel_y))
+                {
+                    indicator_vel_y = 2;                // indicator_vel_y == 2 - slow speeding up is done
+
+                    for(int i = 0; i < 5; i++)         // Informing when ramp in y axe is done
+                        RCLCPP_INFO(this->get_logger(), White_back Black_b "[INFO] Ramp y DONE." Reset);
+                    
+                    timer_ramp_y->cancel();                // Cancel the timer
+                }
+            }
         }
 
         // Processing the abort messages
@@ -458,7 +525,6 @@ class LandingActionServer : public rclcpp::Node
                     double vel_saturation = 0.25;                // Velocity saturation [m]
 
                     // Slow speeding up after start of the regulator_node_server
-                    double speed_inc_dec = 0.002;               // speed adding by speed_inc_dec m / s
                     if(indicator_vel_x == 0 && velocity_x != 0) // indicator_vel_x == 0 - speeding up slowly is needed
                     {
                         indicator_vel_x = 1;                    // indicator_vel_x == 1 - slow speeding up is in progress
@@ -470,26 +536,14 @@ class LandingActionServer : public rclcpp::Node
                             desired_vel_x = vel_saturation;
                         else
                             desired_vel_x = velocity_x;
+
+                        timer_ramp_x->reset(); // Reset the timer for ramping
+                        RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Ramp x STARTED." Reset);
                     }
                     
-                    if(indicator_vel_x == 1)                    // indicator_vel_x == 1 - slow speeding up is in progress
-                    {
-                        // Increasing or decreasing actual velocity based on desired velocity
-                        if(desired_vel_x != actual_vel_x)
-                        {
-                            actual_vel_x = (desired_vel_x > actual_vel_x) ? actual_vel_x + speed_inc_dec : actual_vel_x - speed_inc_dec;
-                            velocity_x = actual_vel_x;
-                        }
-
-                        // Checking if desired velocity was reached
-                        if((desired_vel_x >= 0 && velocity_x >= desired_vel_x) || (desired_vel_x <= 0 && velocity_x <= desired_vel_x))
-                        {
-                            indicator_vel_x = 2;                // indicator_vel_x == 2 - slow speeding up is done
-
-                            for(int i = 0; i < 5; i++)          // Informing when ramp in x axe is done
-                                RCLCPP_INFO(this->get_logger(), Black_back White_b "[INFO] Ramp y DONE." Reset);
-                        }
-                    }
+                    //  Taking velocity from timer
+                    if(indicator_vel_x == 1)  
+                        velocity_x = velocity_x_timer; // Actual velocity for timer
 
                     if(indicator_vel_y == 0 && velocity_y != 0) // indicator_vel_y == 0 - speeding up slowly is needed
                     {
@@ -502,26 +556,14 @@ class LandingActionServer : public rclcpp::Node
                             desired_vel_y = vel_saturation;
                         else
                             desired_vel_y = velocity_y;
+
+                        timer_ramp_y->reset(); // Reset the timer for ramping
+                        RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Ramp y STARTED." Reset);
                     }
                     
-                    if(indicator_vel_y == 1)                    // indicator_vel_y == 1 - slow speeding up is in progress
-                    {
-                        // Increasing or decreasing actual velocity based on desired velocity
-                        if(desired_vel_y != actual_vel_y)
-                        {
-                            actual_vel_y = (desired_vel_y > actual_vel_y) ? actual_vel_y + speed_inc_dec : actual_vel_y - speed_inc_dec;
-                            velocity_y = actual_vel_y;
-                        }
-
-                        // Checking if desired velocity was reached
-                        if((desired_vel_y >= 0 && velocity_y >= desired_vel_y) || (desired_vel_y <= 0 && velocity_y <= desired_vel_y))
-                        {
-                            indicator_vel_y = 2;                // indicator_vel_y == 2 - slow speeding up is done
-
-                            for(int i = 0; i < 5; i++)         // Informing when ramp in y axe is done
-                                RCLCPP_INFO(this->get_logger(), White_back Black_b "[INFO] Ramp y DONE." Reset);
-                        }
-                    }
+                    //  Taking velocity from timer
+                    if(indicator_vel_y == 1)  
+                        velocity_y = velocity_y_timer; // Actual velocity from timer
 
                     // Apply saturation for velocity_x
                     velocity_x = (velocity_x > vel_saturation) ? vel_saturation : velocity_x;
@@ -629,6 +671,8 @@ class LandingActionServer : public rclcpp::Node
             poseCallback_b_var = 0;
             goal_abort_difference = 0;
             goal_abort_detector = 0;
+            indicator_vel_x = 0;    // indicator_velocity_x == 0 - slow speeding up is needed || 1 - slow speeding up is in progress || 2 - slow speeding up is done
+            indicator_vel_y = 0;    // indicator_velocity_y == 0 - slow speeding up is needed || 1 - slow speeding up is in progress || 2 - slow speeding up is done
 
             (void)uuid;
             return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
@@ -718,12 +762,15 @@ class LandingActionServer : public rclcpp::Node
         int poseCallback_m_var;
         int poseCallback_b_var;
         float Kp;
+        double velocity_x_timer;
+        double velocity_y_timer;
         double diff_x_old;
         double diff_y_old;
         double diff_z_old;
         double diff_x;
         double diff_y;
         double diff_z;
+        double speed_inc_dec;
         float indicator_vel_x;
         float indicator_vel_y;
         float actual_vel_x;
@@ -749,6 +796,8 @@ class LandingActionServer : public rclcpp::Node
         geometry_msgs::msg::Twist twist_msg;
         std_msgs::msg::Int8 Int8_msg_alive;
         rclcpp::TimerBase::SharedPtr timer_alive;
+        rclcpp::TimerBase::SharedPtr timer_ramp_x;
+        rclcpp::TimerBase::SharedPtr timer_ramp_y;
 };
 
 }
