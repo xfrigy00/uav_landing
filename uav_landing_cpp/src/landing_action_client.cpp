@@ -413,22 +413,22 @@ namespace uav_landing_cpp
                 }
             }
 
-            double msg_time_prev_0;      // Variable with previous time stamp
-            double msg_time_actual_0;    // Variable with actual time stamp
-            double marker_detected_0;    // Output from detector
+            float msg_time_prev_0;      // Variable with previous time stamp
+            float msg_time_actual_0;    // Variable with actual time stamp
+            float marker_detected_0;    // Output from detector
 
-            double msg_time_prev_1;      // Variable with previous time stamp
-            double msg_time_actual_1;    // Variable with actual time stampabort
-            double marker_detected_1;    // Output from detector
+            float msg_time_prev_1;      // Variable with previous time stamp
+            float msg_time_actual_1;    // Variable with actual time stampabort
+            float marker_detected_1;    // Output from detector
 
-            double msg_time_prev_2;      // Variable with previous time stamp
-            double msg_time_actual_2;    // Variable with actual time stamp
-            double marker_detected_2;    // Output from detector
+            float msg_time_prev_2;      // Variable with previous time stamp
+            float msg_time_actual_2;    // Variable with actual time stamp
+            float marker_detected_2;    // Output from detector
 
             // Member variables for times, subscribers and publishers
             int goal_sent;
-            double mark_t_abort;
-            double server_t_abort;      // Threshold time in seconds after which the action server is not ready (converted to timer repeats)
+            float mark_t_abort;
+            float server_t_abort;      // Threshold time in seconds after which the action server is not ready (converted to timer repeats)
             int counter_ND_s;           // Counter of non - detection of the smallest marker
             int counter_ND_m;           // Counter of non - detection of the middle-sized marker
             int counter_ND_b;           // Counter of non - detection of the biggest marker
@@ -437,7 +437,7 @@ namespace uav_landing_cpp
             int biggest_abort;         // Cancelled goal becasue of non - detection of the biggest marker
             int allow_client;          // Variable for allowing the client to function
             int client_nr;             // Number of client tries
-            double timer_period;       // Timer period in seconds
+            float timer_period;       // Timer period in seconds
             int alive_check_new;          // New alive check message
             int alive_check_prev;         // Previous alive check message
             rclcpp::TimerBase::SharedPtr timer_;

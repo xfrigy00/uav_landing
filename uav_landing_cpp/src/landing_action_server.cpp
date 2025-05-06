@@ -121,16 +121,24 @@ class LandingActionServer : public rclcpp::Node
             timer_ramp_y = this->create_wall_timer(
                 3ms, std::bind(&LandingActionServer::timer_callback_ramp_y, this));
             timer_ramp_y->cancel(); // Cancel the timer at the beginning
-            
+
             speed_inc_dec = 0.00025;               // speed adding by speed_inc_dec m / s
 
             // Set a proportional gain
-            Kp = 0.5;
-            Ki = 0.0;
+            Kp = 0.35; 
+            Ki = 0.003; 
             Kd = 0.0;
+            I_active_zone = 0.3;            // Active zone for I [m], anti windup
+            frequency_PID = 70;               // Frequency of the PID controller
+            dt = 1.0 / frequency_PID;    // Time step of the PID controller
+            last_time = this->get_clock()->now();
 
             error_x_old = 0;    // Old error in x axe
             error_y_old = 0;    // Old error in y axe 
+            integral_x = 0;    // Integral error in x axe
+            integral_y = 0;    // Integral error in y axe
+            derivative_x = 0;    // Derivative error in x axe
+            derivative_y = 0;    // Derivative error in y axe
 
             // Set initialization for variables used for slow speeding up
             indicator_vel_x = 0;    // indicator_velocity_x == 0 - slow speeding up is needed || 1 - slow speeding up is in progress || 2 - slow speeding up is done
@@ -342,44 +350,44 @@ class LandingActionServer : public rclcpp::Node
             if(goal_got == 1 && goal_abort_detector == 0 && goal_abort_difference == 0) // Goal has been received
             {
                 // Initialize x and y
-                double x = 0;
-                double y = 0;
+                float x = 0;
+                float y = 0;
                 
                 #if MODE
                     // Marker sizes [m]
-                    double big_marker_s = 0.428;
-                    double middle_marker_s = 0.212;
-                    double small_marker_s = 0.129;
+                    float big_marker_s = 0.428;
+                    float middle_marker_s = 0.212;
+                    float small_marker_s = 0.129;
 
                     // White gap [m]
-                    double white_bm_ms = 0.039; // White space between big and middle marker and at the same time between medium and small marker
+                    float white_bm_ms = 0.039; // White space between big and middle marker and at the same time between medium and small marker
 
                     // Marker positions [m]
-                    double big_marker_pos_x = big_marker_s / 2;
-                    //double big_marker_pos_y = big_marker_s / 2; // Unused
-                    double middle_marker_pos_x = big_marker_s + white_bm_ms + middle_marker_s / 2;
-                    double middle_marker_pos_y = big_marker_s - middle_marker_s / 2;
-                    double small_marker_pos_x = big_marker_s + white_bm_ms + small_marker_s / 2;
-                    double small_marker_pos_y = big_marker_s - middle_marker_s - white_bm_ms - small_marker_s / 2;
+                    float big_marker_pos_x = big_marker_s / 2.0;
+                    //float big_marker_pos_y = big_marker_s / 2; // Unused
+                    float middle_marker_pos_x = big_marker_s + white_bm_ms + middle_marker_s / 2.0;
+                    float middle_marker_pos_y = big_marker_s - middle_marker_s / 2.0;
+                    float small_marker_pos_x = big_marker_s + white_bm_ms + small_marker_s / 2.0;
+                    float small_marker_pos_y = big_marker_s - middle_marker_s - white_bm_ms - small_marker_s / 2.0;
 
                     // From sizes of landing markers, the landing point is (big_marker_s + middle_marker_s) / 2 [m] for x axe and big_marker_s / 2 [m] for y axe
-                    double middle_x = (big_marker_s + white_bm_ms + middle_marker_s) / 2;
-                    double middle_y = big_marker_s / 2;
+                    float middle_x = (big_marker_s + white_bm_ms + middle_marker_s) / 2.0;
+                    float middle_y = big_marker_s / 2.0;
                 #else
                     // Marker sizes [m]
-                    double big_marker_s = 0.428;
-                    //double small_marker_s = 0.1;    // Unused
+                    float big_marker_s = 0.428;
+                    //float small_marker_s = 0.1;    // Unused
 
                     // Marker positions [m]
-                    // double big_marker_pos_x = big_marker_s / 2;  // Unused
-                    //double big_marker_pos_y = big_marker_s / 2;   // Unused
-                    double small_marker_pos_x = 0.134;
-                    double gap_bs = 0.083;                           // Gap between the biggest marker and the smallest marker
-                    double small_marker_pos_y = big_marker_s - gap_bs - small_marker_pos_x / 2; // Small marker is exactly in the middle of the biggest marker'r white space
+                    // float big_marker_pos_x = big_marker_s / 2;  // Unused
+                    //float big_marker_pos_y = big_marker_s / 2;   // Unused
+                    float small_marker_pos_x = 0.134;
+                    float gap_bs = 0.083;                           // Gap between the biggest marker and the smallest marker
+                    float small_marker_pos_y = big_marker_s - gap_bs - small_marker_pos_x / 2.0; // Small marker is exactly in the middle of the biggest marker'r white space
 
                     // From sizes of landing markers, the landing point position is in the middle of the big marker
-                    double middle_x = big_marker_s / 2;
-                    double middle_y = big_marker_s / 2;
+                    float middle_x = big_marker_s / 2.0;
+                    float middle_y = big_marker_s / 2.0;
                 #endif
 
                 /*
@@ -405,15 +413,15 @@ class LandingActionServer : public rclcpp::Node
                 */
 
                 #if MODE
-                    double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
-                    double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
-                    double level_2 = 2.25;                  // 2.25 m height for landing
-                    double level_1 = 0.8;                   // 1 m height for landing
+                    float horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
+                    float horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
+                    float level_2 = 2.25;                  // 2.25 m height for landing
+                    float level_1 = 0.8;                   // 1 m height for landing
                 #else
-                    double horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
-                    double horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
-                    double level_2 = 0.8;                   // height for landing
-                    double level_1 = 0;                     // Unused but for consistency
+                    float horizontal_dev_x = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe x
+                    float horizontal_dev_y = 0;            // horizontal_deviation [m] - Horizontal deviation from center of marker in axe y
+                    float level_2 = 0.8;                   // height for landing
+                    float level_1 = 0;                     // Unused but for consistency
                 #endif
 
                 // Determining desired distance from marker in axes x and y
@@ -447,7 +455,7 @@ class LandingActionServer : public rclcpp::Node
                     }
                 #endif
 
-                double no_inp_bord = 0.15;          // Border for interval without input [m]
+                float no_inp_bord = 0.15;          // Border for interval without input [m]
                 // Cancelling the goal because of non - detection of the markers
                 if(z > level_2 - no_inp_bord && poseCallback_b_var == 1) // Marker was not detected
                 {
@@ -477,17 +485,17 @@ class LandingActionServer : public rclcpp::Node
                     z_orient = msg->pose.orientation.z;
                     w_orient = msg->pose.orientation.w;
 
-                    double siny_cosp = 2 * (w_orient * z_orient + x_orient * y_orient);
-                    double cosy_cosp = 1 - 2 * (y_orient * y_orient + z_orient * z_orient);
-                    double yaw_rad = std::atan2(siny_cosp, cosy_cosp); // yaw (z-axis rotation)
-                    double yaw_deg = yaw_rad * 180.0 / M_PI;
+                    float siny_cosp = 2 * (w_orient * z_orient + x_orient * y_orient);
+                    float cosy_cosp = 1 - 2 * (y_orient * y_orient + z_orient * z_orient);
+                    float yaw_rad = std::atan2(siny_cosp, cosy_cosp); // yaw (z-axis rotation)
+                    float yaw_deg = yaw_rad * 180.0 / M_PI;
                     angle_rot = yaw_deg + 360; // Angle of rotation in z axe
                     //RCLCPP_INFO(this->get_logger(), "Yaw (deg), angle_rot: %.2f", angle_rot);
 
-                    double temp_hor_x = horizontal_dev_x; // Temporary variable for rotation
-                    double temp_hor_y = horizontal_dev_y; // Temporary variable for rotation
-                    horizontal_dev_x = temp_hor_x * cos(angle_rot / 180 * M_PI) - temp_hor_y * sin(angle_rot / 180 * M_PI); // New x coordinate for deviation in x axe .. Rotation matrix
-                    horizontal_dev_y = temp_hor_x * sin(angle_rot / 180 * M_PI) + temp_hor_y * cos(angle_rot / 180 * M_PI); // New y coordinate for deviation in y axe .. Rotation matrix
+                    float temp_hor_x = horizontal_dev_x; // Temporary variable for rotation
+                    float temp_hor_y = horizontal_dev_y; // Temporary variable for rotation
+                    horizontal_dev_x = temp_hor_x * cos(angle_rot / 180.0 * M_PI) - temp_hor_y * sin(angle_rot / 180.0 * M_PI); // New x coordinate for deviation in x axe .. Rotation matrix
+                    horizontal_dev_y = temp_hor_x * sin(angle_rot / 180.0 * M_PI) + temp_hor_y * cos(angle_rot / 180.0 * M_PI); // New y coordinate for deviation in y axe .. Rotation matrix
 
                     //RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "horizontal_dev_x = %.2f, horizontal_dev_y = %.2f", horizontal_dev_x, horizontal_dev_y);
 
@@ -495,7 +503,10 @@ class LandingActionServer : public rclcpp::Node
                     y = msg->pose.position.y + horizontal_dev_y;
                 
                     // Counting difference
-                    double diff_threshold = 0.4;      // TO_EDIT Threshold for difference
+                    float diff_threshold = 0.5;      // TO_EDIT Threshold for difference
+                    float level_HIGH = 6.0;          // If the drone is high, also higher noise is acceptable 
+                    if(z > level_HIGH) 
+                        diff_threshold = 1.0;       // TO_EDIT Threshold for difference
 
                     // Ignore first difference
                     if(diff_allow == 0)
@@ -520,14 +531,38 @@ class LandingActionServer : public rclcpp::Node
                     diff_z_old = z;
 
                     // PID regulator
+                    rclcpp::Time now = this->get_clock()->now();
+                    rclcpp::Duration duration = now - last_time;
+                    double dt = duration.seconds();  // dt
+                    double freq = 1.0 / dt; // Frequency of the PID controller
+                    RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "freq = %.2f", freq);
+                    last_time = now;
+
+                    derivative_x = (x - error_x_old) / dt;    // Derivative error in x axe
+                    derivative_y = (y - error_y_old) / dt;    // Derivative error in y axe
+                    RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "derivative_x = %.2f, derivative_y = %.2f", derivative_x, derivative_y);                    integral_x += x * dt;                  // Integral error in x axe
+                    integral_x += x * dt;                  // Integral error in x axe
+                    integral_y += y * dt;                  // Integral error in y axe
+
+                    if(abs(x) > I_active_zone)
+                        integral_x = 0;                    // Anti windup for integral error in x axe
+                    
+                    if(abs(y) > I_active_zone)
+                        integral_y = 0;                    // Anti windup for integral error in y axe
+                    RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "integral_x = %.2f, integral_y = %.2f", integral_x, integral_y);
+
                     // World coordinates: x: ↑, y: ←
-                    double velocity_x = Kp * y;                 // Velocity in world x coordinate
-                    double velocity_y = Kp * x;                 // Velocity in world y coordinate
+                    float velocity_x = Kp * y + Ki * integral_y + Kd * derivative_y; // Velocity in world x coordinate
+                    float velocity_y = Kp * x + Ki * integral_x + Kd * derivative_x; // Velocity in world y coordinate
+
+                    error_x_old = x;    // Old error in x axe
+                    error_y_old = y;    // Old error in y axe
+
                     velocity_x = velocity_x * (-1);             // X of a world coordinate system and y of an image coordinate system are oppositely oriented
                     velocity_y = velocity_y * (-1);             // Y of a world coordinate system and x of an image coordinate system are oppositely oriented
 
                     // Velocity saturation limit
-                    double vel_saturation = 0.25;                // Velocity saturation [m]
+                    float vel_saturation = 0.25;                // Velocity saturation [m]
 
                     // Slow speeding up after start of the regulator_node_server
                     if(indicator_vel_x == 0 && velocity_x != 0) // indicator_vel_x == 0 - speeding up slowly is needed
@@ -583,7 +618,7 @@ class LandingActionServer : public rclcpp::Node
                     twist_msg.linear.y = velocity_y;
 
                     // Landing speed
-                    double z_landing_vel = 0;
+                    float z_landing_vel = 0;
                     #if MODE
                         if (z > level_2)
                             z_landing_vel = -0.2;	
@@ -592,7 +627,7 @@ class LandingActionServer : public rclcpp::Node
                         else
                             z_landing_vel = -0.1;
                     #else
-                        double safety_level = 1; // For lowering the speed of landing
+                        float safety_level = 1; // For lowering the speed of landing
 
                         if (z > level_2 + safety_level)
                             z_landing_vel = -0.2;	
@@ -600,11 +635,11 @@ class LandingActionServer : public rclcpp::Node
                             z_landing_vel = -0.1;
                     #endif	
 
-                    double z_landing_vel_stop = 0.0; 	// Landing speed
-                    double landing_high_limit = target_height;	    // Stop decreasing when this level is reached [m]
+                    float z_landing_vel_stop = 0.0; 	// Landing speed
+                    float landing_high_limit = target_height;	    // Stop decreasing when this level is reached [m]
 
                     // Horizontal threshold
-                    double horizontal_thrshld = 0;   // TO_EDIT horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
+                    float horizontal_thrshld = 0;   // TO_EDIT horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
                     if (z > level_2)
                         horizontal_thrshld = 0.15;	
                     else if ((z <= level_2) && (z >= level_1))
@@ -612,7 +647,7 @@ class LandingActionServer : public rclcpp::Node
                     else
                         horizontal_thrshld = 0.03;	
 
-                    double vertical_error = 0.05;       // vertical error of detector for z axe [m]
+                    float vertical_error = 0.05;       // vertical error of detector for z axe [m]
 
                     // If height in z is more than z_landing_vel_stop height &&
                     // If x or y are in interval (horizontal_thrshld; - horizontal_thrshld), then vertical movement is allowed
@@ -769,17 +804,24 @@ class LandingActionServer : public rclcpp::Node
         float Kp;
         float Ki;
         float Kd;
+        float I_active_zone;
+        float frequency_PID;                // Frequency of the PID controller
+        float dt;                       // Time step of the PID controller
         float error_x_old;
         float error_y_old;
-        double velocity_x_timer;
-        double velocity_y_timer;
-        double diff_x_old;
-        double diff_y_old;
-        double diff_z_old;
-        double diff_x;
-        double diff_y;
-        double diff_z;
-        double speed_inc_dec;
+        float integral_x;               // Integral error in x axe
+        float integral_y;               // Integral error in y axe
+        float derivative_x;             // Derivative error in x axe
+        float derivative_y;             // Derivative error in y axe
+        float velocity_x_timer;
+        float velocity_y_timer;
+        float diff_x_old;
+        float diff_y_old;
+        float diff_z_old;
+        float diff_x;
+        float diff_y;
+        float diff_z;
+        float speed_inc_dec;
         float indicator_vel_x;
         float indicator_vel_y;
         float actual_vel_x;
@@ -807,6 +849,7 @@ class LandingActionServer : public rclcpp::Node
         rclcpp::TimerBase::SharedPtr timer_alive;
         rclcpp::TimerBase::SharedPtr timer_ramp_x;
         rclcpp::TimerBase::SharedPtr timer_ramp_y;
+        rclcpp::Time last_time;
 };
 
 }
