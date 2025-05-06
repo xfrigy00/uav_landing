@@ -1,5 +1,6 @@
 aircraft
 controllers
+aruco_ros
 managers
 planners
 px4_ros2_bridge
