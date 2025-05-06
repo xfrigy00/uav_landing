@@ -129,16 +129,14 @@ class LandingActionServer : public rclcpp::Node
             Ki = 0.003; 
             Kd = 0.0;
             I_active_zone = 0.3;            // Active zone for I [m], anti windup
-            frequency_PID = 70;               // Frequency of the PID controller
-            dt = 1.0 / frequency_PID;    // Time step of the PID controller
             last_time = this->get_clock()->now();
 
             error_x_old = 0;    // Old error in x axe
             error_y_old = 0;    // Old error in y axe 
             integral_x = 0;    // Integral error in x axe
             integral_y = 0;    // Integral error in y axe
-            derivative_x = 0;    // Derivative error in x axe
-            derivative_y = 0;    // Derivative error in y axe
+            //derivative_x = 0;    // Derivative error in x axe
+            //derivative_y = 0;    // Derivative error in y axe
 
             // Set initialization for variables used for slow speeding up
             indicator_vel_x = 0;    // indicator_velocity_x == 0 - slow speeding up is needed || 1 - slow speeding up is in progress || 2 - slow speeding up is done
@@ -534,26 +532,26 @@ class LandingActionServer : public rclcpp::Node
                     rclcpp::Time now = this->get_clock()->now();
                     rclcpp::Duration duration = now - last_time;
                     double dt = duration.seconds();  // dt
-                    double freq = 1.0 / dt; // Frequency of the PID controller
-                    RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "freq = %.2f", freq);
+                    //double freq = 1.0 / dt; // Frequency of the PID controller
+                    //RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "freq = %.2f", freq);
                     last_time = now;
 
-                    derivative_x = (x - error_x_old) / dt;    // Derivative error in x axe
-                    derivative_y = (y - error_y_old) / dt;    // Derivative error in y axe
-                    RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "derivative_x = %.2f, derivative_y = %.2f", derivative_x, derivative_y);                    integral_x += x * dt;                  // Integral error in x axe
+                    //derivative_x = (x - error_x_old) / dt;    // Derivative error in x axe
+                    //derivative_y = (y - error_y_old) / dt;    // Derivative error in y axe
+                    //RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "derivative_x = %.2f, derivative_y = %.2f", derivative_x, derivative_y);
                     integral_x += x * dt;                  // Integral error in x axe
                     integral_y += y * dt;                  // Integral error in y axe
 
                     if(abs(x) > I_active_zone)
-                        integral_x = 0;                    // Anti windup for integral error in x axe
+                        integral_x = 0;                    // Anti - windup for integral error in x axe
                     
                     if(abs(y) > I_active_zone)
-                        integral_y = 0;                    // Anti windup for integral error in y axe
-                    RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "integral_x = %.2f, integral_y = %.2f", integral_x, integral_y);
+                        integral_y = 0;                    // Anti - windup for integral error in y axe
+                    //RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "integral_x = %.2f, integral_y = %.2f", integral_x, integral_y);
 
                     // World coordinates: x: ↑, y: ←
-                    float velocity_x = Kp * y + Ki * integral_y + Kd * derivative_y; // Velocity in world x coordinate
-                    float velocity_y = Kp * x + Ki * integral_x + Kd * derivative_x; // Velocity in world y coordinate
+                    float velocity_x = Kp * y + Ki * integral_y; //+ Kd * derivative_y;  Velocity in world x coordinate
+                    float velocity_y = Kp * x + Ki * integral_x; //+ Kd * derivative_x;  Velocity in world y coordinate
 
                     error_x_old = x;    // Old error in x axe
                     error_y_old = y;    // Old error in y axe
@@ -805,14 +803,12 @@ class LandingActionServer : public rclcpp::Node
         float Ki;
         float Kd;
         float I_active_zone;
-        float frequency_PID;                // Frequency of the PID controller
-        float dt;                       // Time step of the PID controller
         float error_x_old;
         float error_y_old;
         float integral_x;               // Integral error in x axe
         float integral_y;               // Integral error in y axe
-        float derivative_x;             // Derivative error in x axe
-        float derivative_y;             // Derivative error in y axe
+        //float derivative_x;             // Derivative error in x axe
+        //float derivative_y;             // Derivative error in y axe
         float velocity_x_timer;
         float velocity_y_timer;
         float diff_x_old;
