@@ -152,7 +152,6 @@ class LandingActionServer : public rclcpp::Node
             y_orient = 0;           // Orientation in y axe
             z_orient = 0;           // Orientation in z axe
             w_orient = 0;           // Orientation in w axe
-            angle_rot = 0;
             target_height = 0;     
             goal_got = 0;           // Variable for detecting if an action goal was received
             goal_abort = 0;
@@ -483,12 +482,12 @@ class LandingActionServer : public rclcpp::Node
                     z_orient = msg->pose.orientation.z;
                     w_orient = msg->pose.orientation.w;
 
-                    float siny_cosp = 2 * (w_orient * z_orient + x_orient * y_orient);
-                    float cosy_cosp = 1 - 2 * (y_orient * y_orient + z_orient * z_orient);
-                    float yaw_rad = std::atan2(siny_cosp, cosy_cosp); // yaw (z-axis rotation)
+                    float s = 2 * (w_orient * z_orient + x_orient * y_orient);
+                    float c = w_orient * w_orient + x_orient * x_orient - y_orient * y_orient - z_orient * z_orient;
+                    float yaw_rad = std::atan2(s, c); // yaw (z-axis rotation)
                     float yaw_deg = yaw_rad * 180.0 / M_PI;
-                    angle_rot = yaw_deg + 360; // Angle of rotation in z axe
-                    //RCLCPP_INFO(this->get_logger(), "Yaw (deg), angle_rot: %.2f", angle_rot);
+                    float angle_rot = yaw_deg + 360; // Angle of rotation in z axe
+                    //RCLCPP_INFO(this->get_logger(), "Yaw (deg), angle_rot = %.2f", angle_rot);
 
                     float temp_hor_x = horizontal_dev_x; // Temporary variable for rotation
                     float temp_hor_y = horizontal_dev_y; // Temporary variable for rotation
@@ -830,7 +829,6 @@ class LandingActionServer : public rclcpp::Node
         float y_orient;
         float z_orient;
         float w_orient;
-        float angle_rot = 0;
         float target_height;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_0;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_1;
