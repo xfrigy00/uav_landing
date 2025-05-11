@@ -25,8 +25,8 @@ def launch_setup(context, *args, **kwargs):
         parameters=[aruco_single_2_params],
         remappings=[('/camera_info', '/my_camera/pylon_ros2_camera_node/camera_info'),
        		   #[('/camera_info', '/cameras/left_hand_camera/camera_info'),
-                    ('/image', '/x500_1/sensors/camera/image')],
-                    #('/image', '/my_camera/pylon_ros2_camera_node/image_rect')],
+                    #('/image', '/x500_1/sensors/camera/image')],
+                    ('/image', '/my_camera/pylon_ros2_camera_node/image_rect')],
     )
 
     return [aruco_single_2]
@@ -40,8 +40,7 @@ def generate_launch_description():
     )
 
     marker_size_arg = DeclareLaunchArgument(
-        #'marker_size', default_value='0.428', # Nested big
-    	'marker_size', default_value='0.428', # Cascade big
+        'marker_size', default_value='0.428', # Nested big, Cascade big
         description='Marker size in m. '
     )
 

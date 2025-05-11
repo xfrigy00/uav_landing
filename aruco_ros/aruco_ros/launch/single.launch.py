@@ -25,10 +25,10 @@ def launch_setup(context, *args, **kwargs):
         parameters=[aruco_single_params],
         remappings=[('/camera_info', '/my_camera/pylon_ros2_camera_node/camera_info'),
        		   #[('/camera_info', '/cameras/left_hand_camera/camera_info'),
-                    ('/image', '/x500_1/sensors/camera/image')],
+                    #('/image', '/x500_1/sensors/camera/image')],
                     #('/image', '/image')],
                     #('/image', '/my_camera/pylon_ros2_camera_node/image_raw')],
-                    #('/image', '/my_camera/pylon_ros2_camera_node/image_rect')],
+                    ('/image', '/my_camera/pylon_ros2_camera_node/image_rect')],
     )
 
     return [aruco_single]

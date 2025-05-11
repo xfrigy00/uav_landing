@@ -364,12 +364,21 @@ namespace uav_landing_cpp
                     counter_ND_b++;                         // Incrementing counter of non-detection of the biggest marker
                 }
 
-                if(counter_ND_b > mark_t_abort && counter_ND_m > mark_t_abort && counter_ND_s > mark_t_abort)
-                {
-                    RCLCPP_INFO(this->get_logger(), Red_back Black_b "[INFO] --- Cancelling the goal because of non - detection of the markers ---" Reset);
-                    rclcpp::shutdown();
-                    return;
-                }
+                #if MODE
+                    if(counter_ND_b > mark_t_abort && counter_ND_m > mark_t_abort && counter_ND_s > mark_t_abort)
+                    {
+                        RCLCPP_INFO(this->get_logger(), Red_back Black_b "[INFO] --- Cancelling the goal because of non - detection of the markers ---" Reset);
+                        rclcpp::shutdown();
+                        return;
+                    }
+                #else
+                    if(counter_ND_b > mark_t_abort && counter_ND_m > mark_t_abort)
+                    {
+                        RCLCPP_INFO(this->get_logger(), Red_back Black_b "[INFO] --- Cancelling the goal because of non - detection of the markers ---" Reset);
+                        rclcpp::shutdown();
+                        return;
+                    }
+                #endif
 
                 // Create an Int8 message
                 auto Int8_msg_0 = std_msgs::msg::Int8();
