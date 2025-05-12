@@ -26,15 +26,15 @@ Software packages for automatic landing of an unmanned aerial vehicle, along wit
    
    More information is provided in the comments of the codes
 #### Software package aruco_ros
-   * Aruco marker detection package downloaded from https://github.com/pal-robotics/aruco_ros
+   * Aruco marker detection package downloaded from [pal-robotics](https://github.com/pal-robotics/aruco_ros)
    * Detection is performed using the detectors `single.launch.py`, `single_1.launch.py` ​​and `single_2.launch.py`, in which it is possible to set the topic from which the camera parameters are subscribed, the output image from the camera, the size of the marker and its ID
 
 #### Config file pylon_camera_wrapper_config.zip
-   * Configuration file for the software package from https://github.com/basler/pylon-ros-camera/tree/humble, specifically for `pylon_ros2_camera_wrapper`, which allows setting fps and a relative path to the file with calibrated camera parameters
+   * Configuration file for the software package from [pylon-ros-camera](https://github.com/basler/pylon-ros-camera/tree/humble), specifically for `pylon_ros2_camera_wrapper`, which allows setting fps and a relative path to the file with calibrated camera parameters
 
 ## How to run
 Starting detectors, individual echoes for detector poses, and the algorithm consisting of an action server and an action client by moving to file `uav_landing/start` and the following command `./start.sh`
 
 Stopping the algorithm and all other sessions is possible with `tmux kill-server` and stopping only a specific session with `tmux kill-session`
 
-For the packages to work properly, it is necessary to use `colcon build` for the workspace and `source` packages in file `~/.bashrc` or in every terminal. In case of problems with the `colcon build` command of the basler package, it is advisable to study document `Interfacing Basler Cameras with ROS 2`
+For the packages to work properly, it is necessary to use `colcon build` for the workspace and `source` packages in file `~/.bashrc` or in every terminal. In case of problems with the `colcon build` command of the basler package, it is advisable to study document [`Interfacing Basler Cameras with ROS 2`](https://assets-ctf.baslerweb.com/dg51pdwahxgw/7nIhl0TyQI2d1MAml1OtAA/07bc43474be93e1c753cbba8baedef93/AW00172901000_Interfacing_Basler_Cameras_with_ROS_2.pdf?_gl=1*lxeu81*_gcl_au*MTMzMjczNTEzNi4xNzQyMzIyNzk0*_ga*MTg0OTc5NzUxNi4xNzQyMzIyNzg3*_ga_5KSFYEQ7CY*MTc0MjM3MzgzNy4yLjEuMTc0MjM3Mzg3OS4xOC4wLjA)
