@@ -22,18 +22,15 @@ Software packages for automatic landing of an unmanned aerial vehicle, along wit
 
 #### Software package uav_landing_cpp
    * src/landing_action_server.cpp: Action server with the implementation of regulation and setting the speed,, ramp during startup, critical states of the algorithm etc.
-   * src/landing_action_client.cpp: Action client with implementation of optical marker detection, server connection or disconnection detection, sending action goals, receiving feedback, etc.
+   * src/landing_action_client.cpp: Action client with implementation of optical marker detection, server connection or disconnection detection, sending action goal, receiving feedback, etc.
    
    More information is provided in the comments of the codes
 #### Software package aruco_ros
-   * 
-   * 
-   * 
+   * Aruco marker detection package downloaded from https://github.com/pal-robotics/aruco_ros
+   * Detection is performed using the detectors `single.launch.py`, `single_1.launch.py` ​​and `single_2.launch.py`, in which it is possible to set the topic from which the camera parameters are subscribed, the output image from the camera, the size of the marker and its ID
 
 #### pylon_camera_wrapper_config.zip
-   * 
-   * 
-   * 
+   * Configuration file for the software package from https://github.com/basler/pylon-ros-camera/tree/humble, specifically for `pylon_ros2_camera_wrapper`, which allows setting fps and a relative path to the file with calibrated camera parameters
 
 Starting detectors, individual echoes for detector poses, and the algorithm consisting of an action server and an action client by moving to file `uav_landing/start` and the following command `./start.sh`
 
