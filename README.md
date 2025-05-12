@@ -35,3 +35,5 @@ Software packages for automatic landing of an unmanned aerial vehicle, along wit
 Starting detectors, individual echoes for detector poses, and the algorithm consisting of an action server and an action client by moving to file `uav_landing/start` and the following command `./start.sh`
 
 Stopping the algorithm and all other sessions is possible with `tmux kill-server` and stopping only a specific session with `tmux kill-session`
+
+For the packages to work properly, it is necessary to use `colcon build` for the workspace and `source` packages in file `~/.bashrc` or in every terminal. In case of problems with the `colcon build` command of the basler package, it is advisable to study document `Interfacing Basler Cameras with ROS 2`
