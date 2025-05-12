@@ -5,7 +5,7 @@ Software packages for automatic landing of an unmanned aerial vehicle, along wit
 
 ## Contents of individual packages and files
 #### Software package uav_landing
-   * action/Landing.action: An action used by the algorithm to set an action goal, notify about the success of the action goal, and send feedback.
+   * action/Landing.action: An action used by the algorithm to set an action goal, notify about the success of the action goal, and send feedback
 
          # Goal - Desired final height in meters
          float64 target_height
