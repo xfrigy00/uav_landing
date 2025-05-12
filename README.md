@@ -32,6 +32,7 @@ Software packages for automatic landing of an unmanned aerial vehicle, along wit
 #### Config file pylon_camera_wrapper_config.zip
    * Configuration file for the software package from https://github.com/basler/pylon-ros-camera/tree/humble, specifically for `pylon_ros2_camera_wrapper`, which allows setting fps and a relative path to the file with calibrated camera parameters
 
+## How to run
 Starting detectors, individual echoes for detector poses, and the algorithm consisting of an action server and an action client by moving to file `uav_landing/start` and the following command `./start.sh`
 
 Stopping the algorithm and all other sessions is possible with `tmux kill-server` and stopping only a specific session with `tmux kill-session`
