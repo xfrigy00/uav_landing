@@ -11,6 +11,7 @@ find_package(uav_landing REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_components REQUIRED)
+find_package(std_srvs REQUIRED)
 
 find_package(geometry_msgs REQUIRED)
 add_library(action_server SHARED
@@ -25,7 +26,8 @@ ament_target_dependencies(action_server
    "rclcpp"
    "rclcpp_action"
    "rclcpp_components"
-   "geometry_msgs")
+   "geometry_msgs"
+   "std_srvs")
 rclcpp_components_register_node(action_server PLUGIN "uav_landing_cpp::LandingActionServer" EXECUTABLE landing_action_server)
 install(TARGETS
    action_server

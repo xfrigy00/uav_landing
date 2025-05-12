@@ -12,6 +12,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 #include "uav_landing_cpp/visibility_control.h"
 
@@ -121,6 +122,15 @@ class LandingActionServer : public rclcpp::Node
             timer_ramp_y = this->create_wall_timer(
                 3ms, std::bind(&LandingActionServer::timer_callback_ramp_y, this));
             timer_ramp_y->cancel(); // Cancel the timer at the beginning
+            
+            // Create a timer 
+            timer_land = this->create_wall_timer(
+                50ms, std::bind(&LandingActionServer::timer_callback_land, this));
+            timer_land->cancel(); // Cancel the timer at the beginning
+            
+            land_client_ = this->create_client<std_srvs::srv::Trigger>("/x500_1/aircraft/land");
+            wait_for_act_land = 3.0;                  // Waiting before calling the action land [s]
+            counter_period = 0.05;                      // Period of timer for landing [s]
 
             speed_inc_dec = 0.00025;               // speed adding by speed_inc_dec m / s
 
@@ -181,7 +191,7 @@ class LandingActionServer : public rclcpp::Node
             // Setting variable for indicating end of landing
             landing_ind = 2;    /*  2 - landig was started but position of the drone is less than landing_high_limit, 
                                     0 - FALSE,landing was started but position of the drone is more than landing_high_limit, 
-                                    1 - TRUE, landing was started previous state was 0 and now position of the drone is more than landing_high_limit*/
+                                    1 - TRUE, landing was started previous state was 0 and now position of the drone is less than landing_high_limit*/
 
             RCLCPP_INFO(this->get_logger(), Cyan_b "[INFO] Marker detector action server has started." Reset); // Informing about starting a node
         }
@@ -267,6 +277,26 @@ class LandingActionServer : public rclcpp::Node
                     timer_ramp_y->cancel();                // Cancel the timer
                 }
             }
+        }
+
+        // Timer for landing
+        void timer_callback_land()
+        {
+            if(wait_for_act_land >= 0)
+                RCLCPP_INFO(this->get_logger(), Green_b "Action land will be triggered in %.2f secs." Reset, wait_for_act_land);
+
+            if(wait_for_act_land <= 0)
+            {
+                auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+                auto result_future = land_client_->async_send_request(request);
+
+                timer_land->cancel();       // Cancel the timer
+                RCLCPP_INFO(this->get_logger(), Green_b "Action land has been triggered, disconnecting the action server." Reset);
+                rclcpp::shutdown();         // Turn off the action server
+            }
+            
+            if(wait_for_act_land >= 0)
+                wait_for_act_land = wait_for_act_land - counter_period; // Decreasing countdown for landing
         }
 
         // Processing the abort messages
@@ -664,11 +694,13 @@ class LandingActionServer : public rclcpp::Node
 
                     if(msg->pose.position.z >= landing_high_limit + vertical_error) 
                         landing_ind = 0;                                                        // Position of the drone is more than landing_high_limit, changing state of landing
-                    else if(landing_ind == 0 && msg->pose.position.z <= landing_high_limit)     // If position of the drone is in axe z less of same as Landing and value of landing_ind is 0, automatic landing is done
+                    else if(landing_ind == 0 && msg->pose.position.z <= landing_high_limit)     // If position of the drone is in axe z less of same as Landing and value of landing_ind is 0, action land can be called
                     {
                         landing_ind = 1;
                         for(int i = 0; i < 100; i++)
                             RCLCPP_INFO(this->get_logger(), Yellow_b_i "[INFO] Automatic landing DONE, regulation to minimum regulation deviation in axes x and y is still working." Reset);
+                            
+                        timer_land->reset();                // Allow to call the action land
                     }
 
                     // No angular movement
@@ -830,6 +862,8 @@ class LandingActionServer : public rclcpp::Node
         float z_orient;
         float w_orient;
         float target_height;
+        float counter_period;
+        float wait_for_act_land;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_0;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_1;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_2;
@@ -843,7 +877,9 @@ class LandingActionServer : public rclcpp::Node
         rclcpp::TimerBase::SharedPtr timer_alive;
         rclcpp::TimerBase::SharedPtr timer_ramp_x;
         rclcpp::TimerBase::SharedPtr timer_ramp_y;
+        rclcpp::TimerBase::SharedPtr timer_land;
         rclcpp::Time last_time;
+        rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr land_client_;
 };
 
 }
