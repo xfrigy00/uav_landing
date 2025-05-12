@@ -17,14 +17,14 @@ Software packages for automatic landing of an unmanned aerial vehicle, along wit
          float64 current_height
 
    * calibrationdata_pinhole/ost.yaml: Calibrated camera parameters
-   * start/start.sh: with the command `./start.sh` in the terminal can be used to start tmux
-   * start/uav_landing.yml: lists the commands that will be opened within tmux
+   * start/start.sh: With the command `./start.sh` in the terminal can be used to start tmux
+   * start/uav_landing.yml: Lists the commands that will be opened within tmux
 
 #### Software package uav_landing_cpp
-   * 
-   * 
-   * 
-
+   * src/landing_action_server.cpp: Action server with the implementation of regulation and setting the speed,, ramp during startup, critical states of the algorithm etc.
+   * src/landing_action_client.cpp: Action client with implementation of optical marker detection, server connection or disconnection detection, sending action goals, receiving feedback, etc.
+   
+   More information is provided in the comments of the codes
 #### Software package aruco_ros
    * 
    * 
