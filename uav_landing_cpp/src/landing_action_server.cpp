@@ -34,7 +34,7 @@
 #define Red_back  "\033[41m"    // Red
 
 // Choosing a mode
-#define MODE 1 // 0 - 2 in 1 marker, 1 - Cascade of 3 Markers
+#define MODE 1 // 0 - 2 in 1 marker (nested), 1 - Cascade of 3 Markers
 
 // Formatting off
 #define Reset "\033[0m"    
@@ -68,49 +68,49 @@ class LandingActionServer : public rclcpp::Node
                 std::bind(&LandingActionServer::handle_cancel, this, _1),
                 std::bind(&LandingActionServer::handle_accepted, this, _1));
 
-            // Create subscribers
-            pose_subscriber_0 = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            // Create subscribers of pose 
+            pose_subscriber_0 = this->create_subscription<geometry_msgs::msg::PoseStamped>( // Subsrciber of pose from detector for cascade small marker
                 "/aruco_single/pose", 10,
                 std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
             );
 
-            pose_subscriber_1 = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            pose_subscriber_1 = this->create_subscription<geometry_msgs::msg::PoseStamped>( // Subsrciber of pose from detector for cascade medium or nested small marker
                 "/aruco_single_1/pose_1", 10,
                 std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
             );
 
-            pose_subscriber_2 = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            pose_subscriber_2 = this->create_subscription<geometry_msgs::msg::PoseStamped>( // Subsrciber of pose from detector for cascade big or nested big marker  
                 "/aruco_single_2/pose_2", 10,
                 std::bind(&LandingActionServer::poseCallback, this, std::placeholders::_1)
             );
 
-            pose_subscriber_3 = this->create_subscription<std_msgs::msg::Int8>(
+            pose_subscriber_3 = this->create_subscription<std_msgs::msg::Int8>( // Smallest marker detection
                 "/x500_1/aircraft/abort_smallest", 10,
                 std::bind(&LandingActionServer::poseCallback_s, this, std::placeholders::_1)
             );
 
-            pose_subscriber_4 = this->create_subscription<std_msgs::msg::Int8>(
+            pose_subscriber_4 = this->create_subscription<std_msgs::msg::Int8>( // Middle-sized marker detection
                 "/x500_1/aircraft/abort_middle_sized", 10,
                 std::bind(&LandingActionServer::poseCallback_m, this, std::placeholders::_1)
             );
 
-            pose_subscriber_5 = this->create_subscription<std_msgs::msg::Int8>(
+            pose_subscriber_5 = this->create_subscription<std_msgs::msg::Int8>( // Biggest marker detection
                 "/x500_1/aircraft/abort_biggest", 10,
                 std::bind(&LandingActionServer::poseCallback_b, this, std::placeholders::_1)
             );
 
             // Create a publisher
-            twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(
+            twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>( // Velocity publisher
                 "/x500_1/aircraft/cmd_vel", 10
             );
 
             // Create publishers
-            int_publisher_alive = this->create_publisher<std_msgs::msg::Int8>(
+            int_publisher_alive = this->create_publisher<std_msgs::msg::Int8>(  // Publisher of alive message
                 "/x500_1/aircraft/server_alive", 10
             );
 
             // Create a timer
-            timer_alive = this->create_wall_timer(
+            timer_alive = this->create_wall_timer( // Timer for publishing alive messages
                 100ms, std::bind(&LandingActionServer::timer_callback, this));  // If changing this, change also variable timer_period in the code
 
             // Create a timer 
@@ -119,32 +119,32 @@ class LandingActionServer : public rclcpp::Node
             timer_ramp_x->cancel(); // Cancel the timer at the beginning
 
             // Create a timer 
-            timer_ramp_y = this->create_wall_timer(
+            timer_ramp_y = this->create_wall_timer( // Timer for ramp in y axe
                 3ms, std::bind(&LandingActionServer::timer_callback_ramp_y, this));
             timer_ramp_y->cancel(); // Cancel the timer at the beginning
             
             // Create a timer 
-            timer_land = this->create_wall_timer(
+            timer_land = this->create_wall_timer( // Timer for waiting after reaching the target height and before calling the action land
                 50ms, std::bind(&LandingActionServer::timer_callback_land, this));
             timer_land->cancel(); // Cancel the timer at the beginning
             
-            land_client_ = this->create_client<std_srvs::srv::Trigger>("/x500_1/aircraft/land");
-            wait_for_act_land = 3.0;                  // Waiting before calling the action land [s]
+            land_client_ = this->create_client<std_srvs::srv::Trigger>("/x500_1/aircraft/land"); // Client for calling the action land
+            wait_for_act_land = 3.0;                    // Waiting before calling the action land [s]
             counter_period = 0.05;                      // Period of timer for landing [s]
 
-            speed_inc_dec = 0.00025;               // speed adding by speed_inc_dec m / s
+            speed_inc_dec = 0.00025;                    // speed adding by speed_inc_dec m / s
 
-            // Set a proportional gain
+            // PID regulator initialization
             Kp = 0.35; 
             Ki = 0.003; 
             Kd = 0.0;
             I_active_zone = 0.3;            // Active zone for I [m], anti windup
             last_time = this->get_clock()->now();
 
-            error_x_old = 0;    // Old error in x axe
-            error_y_old = 0;    // Old error in y axe 
-            integral_x = 0;    // Integral error in x axe
-            integral_y = 0;    // Integral error in y axe
+            error_x_old = 0;        // Old error in x axe
+            error_y_old = 0;        // Old error in y axe 
+            integral_x = 0;         // Integral error in x axe
+            integral_y = 0;         // Integral error in y axe
             //derivative_x = 0;    // Derivative error in x axe
             //derivative_y = 0;    // Derivative error in y axe
 
@@ -153,32 +153,32 @@ class LandingActionServer : public rclcpp::Node
             indicator_vel_y = 0;    // indicator_velocity_y == 0 - slow speeding up is needed || 1 - slow speeding up is in progress || 2 - slow speeding up is done
             desired_vel_x = 0;      // Desired velocity
             desired_vel_y = 0;
-            actual_vel_x = 0;       // Actual velocity  
-            actual_vel_y = 0;
+            actual_vel_x = 0;       // Actual velocity in x axe
+            actual_vel_y = 0;       // Actual velocity in y axe
             velocity_x_timer = 0;   // Actual velocity for timer
-            velocity_y_timer = 0;  // Actual velocity for timer
+            velocity_y_timer = 0;   // Actual velocity for timer
             z = 0;                  // Height of a drone
             x_orient = 0;           // Orientation in x axe
             y_orient = 0;           // Orientation in y axe
             z_orient = 0;           // Orientation in z axe
             w_orient = 0;           // Orientation in w axe
-            target_height = 0;     
-            goal_got = 0;           // Variable for detecting if an action goal was received
-            goal_abort = 0;
-            goal_abort_detector = 0;
-            goal_abort_difference = 0;
-            diff_x_old = 0;
-            diff_y_old = 0;
-            diff_z_old = 0;
-            diff_x = 0;
-            diff_y = 0;
-            diff_z = 0;
-            diff_allow = 0;
-            poseCallback_s_var = 0;
-            poseCallback_m_var = 0;
-            poseCallback_b_var = 0;
+            target_height = 0;      // Target height for setttin the action goal
+            goal_got = 0;               // Variable for detecting if an action goal was received
+            goal_abort = 0;             // Variable for detecting if an action goal was aborted
+            goal_abort_detector = 0;    // Detecting if an action goal was aborted because of non-detection of the markers
+            goal_abort_difference = 0;  // Detecting if an action goal was aborted because of inconsistent detection
+            diff_x_old = 0;             // Old difference in x axe
+            diff_y_old = 0;             // Old difference in y axe
+            diff_z_old = 0;             // Old difference in z axe
+            diff_x = 0;                 // Difference in x axe
+            diff_y = 0;                 // Difference in y axe
+            diff_z = 0;                 // Difference in z axe
+            diff_allow = 0;             // Allowing difference in x axe
+            poseCallback_s_var = 0;         // Variable for detecting if the smallest marker was detected
+            poseCallback_m_var = 0;         // Variable for detecting if the middle-sized marker was detected
+            poseCallback_b_var = 0;         // Variable for detecting if the biggest marker was detected
 
-            // Create a Twist message
+            // Create a Twist message and initialize it
             twist_msg.linear.x = 0;
             twist_msg.linear.y = 0;
             twist_msg.linear.z = 0;
@@ -226,7 +226,6 @@ class LandingActionServer : public rclcpp::Node
             Int8_msg_alive.data++;
         }
 
-        //HHH
         // Startup acceleration ramp, x
         void timer_callback_ramp_x()
         {
@@ -371,7 +370,7 @@ class LandingActionServer : public rclcpp::Node
                RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f", twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
                RCLCPP_INFO(this->get_logger(), Red_b "Goal was aborted --- INCONSISTENT DETECTION ---" Reset);
 
-               twist_publisher_->publish(twist_msg);
+               twist_publisher_->publish(twist_msg); // Publish the message
            }
 
             if(goal_got == 1 && goal_abort_detector == 0 && goal_abort_difference == 0) // Goal has been received
@@ -392,7 +391,7 @@ class LandingActionServer : public rclcpp::Node
                     // Marker positions [m]
                     float big_marker_pos_x = big_marker_s / 2.0;
                     //float big_marker_pos_y = big_marker_s / 2; // Unused
-                    float middle_marker_pos_x = big_marker_s + white_bm_ms + middle_marker_s / 2.0;
+                    float middle_marker_pos_x = big_marker_s + white_bm_ms + middle_marker_s / 2.0; // / 2.0 for splitting the marker in half
                     float middle_marker_pos_y = big_marker_s - middle_marker_s / 2.0;
                     float small_marker_pos_x = big_marker_s + white_bm_ms + small_marker_s / 2.0;
                     float small_marker_pos_y = big_marker_s - middle_marker_s - white_bm_ms - small_marker_s / 2.0;
@@ -666,7 +665,7 @@ class LandingActionServer : public rclcpp::Node
                     float landing_high_limit = target_height;	    // Stop decreasing when this level is reached [m]
 
                     // Horizontal threshold
-                    float horizontal_thrshld = 0;   // TO_EDIT horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
+                    float horizontal_thrshld = 0;       // TO_EDIT horizontal_threshold [m], maximum desired regulation deviation while reaching desired point
                     if (z > level_2)
                         horizontal_thrshld = 0.15;	
                     else if ((z <= level_2) && (z >= level_1))
@@ -674,7 +673,7 @@ class LandingActionServer : public rclcpp::Node
                     else
                         horizontal_thrshld = 0.03;	
 
-                    float vertical_error = 0.05;       // vertical error of detector for z axe [m]
+                    float vertical_error = 0.05;       // Vertical error of detector for z axe [m]
 
                     // If height in z is more than z_landing_vel_stop height &&
                     // If x or y are in interval (horizontal_thrshld; - horizontal_thrshld), then vertical movement is allowed
