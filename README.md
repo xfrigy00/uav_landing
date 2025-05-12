@@ -29,7 +29,7 @@ Software packages for automatic landing of an unmanned aerial vehicle, along wit
    * Aruco marker detection package downloaded from https://github.com/pal-robotics/aruco_ros
    * Detection is performed using the detectors `single.launch.py`, `single_1.launch.py` ​​and `single_2.launch.py`, in which it is possible to set the topic from which the camera parameters are subscribed, the output image from the camera, the size of the marker and its ID
 
-#### pylon_camera_wrapper_config.zip
+#### Config file pylon_camera_wrapper_config.zip
    * Configuration file for the software package from https://github.com/basler/pylon-ros-camera/tree/humble, specifically for `pylon_ros2_camera_wrapper`, which allows setting fps and a relative path to the file with calibrated camera parameters
 
 Starting detectors, individual echoes for detector poses, and the algorithm consisting of an action server and an action client by moving to file `uav_landing/start` and the following command `./start.sh`
