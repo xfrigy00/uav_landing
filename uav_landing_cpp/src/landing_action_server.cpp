@@ -127,9 +127,11 @@ class LandingActionServer : public rclcpp::Node
             timer_land = this->create_wall_timer( // Timer for waiting after reaching the target height and before calling the action land
                 50ms, std::bind(&LandingActionServer::timer_callback_land, this));
             timer_land->cancel(); // Cancel the timer at the beginning
-            
+            timer_land_allowed = 0;
+
             land_client_ = this->create_client<std_srvs::srv::Trigger>("/x500_1/aircraft/land"); // Client for calling the action land
-            wait_for_act_land = 3.0;                    // Waiting before calling the action land [s]
+            wait_for_act_land = 3.0;
+            wait_for_act_land_temp = wait_for_act_land;                    // Waiting before calling the action land [s]
             counter_period = 0.05;                      // Period of timer for landing [s]
 
             speed_inc_dec = 0.00025;                    // speed adding by speed_inc_dec m / s
@@ -281,10 +283,10 @@ class LandingActionServer : public rclcpp::Node
         // Timer for landing
         void timer_callback_land()
         {
-            if(wait_for_act_land >= 0)
-                RCLCPP_INFO(this->get_logger(), Green_b "Action land will be triggered in %.2f secs." Reset, wait_for_act_land);
+            if(wait_for_act_land_temp >= 0)
+                RCLCPP_INFO(this->get_logger(), Green_b "Action land will be triggered in %.2f secs." Reset, wait_for_act_land_temp);
 
-            if(wait_for_act_land <= 0)
+            if(wait_for_act_land_temp <= 0)
             {
                 auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
                 auto result_future = land_client_->async_send_request(request);
@@ -294,8 +296,8 @@ class LandingActionServer : public rclcpp::Node
                 rclcpp::shutdown();         // Turn off the action server
             }
             
-            if(wait_for_act_land >= 0)
-                wait_for_act_land = wait_for_act_land - counter_period; // Decreasing countdown for landing
+            if(wait_for_act_land_temp >= 0)
+                wait_for_act_land_temp = wait_for_act_land_temp - counter_period; // Decreasing countdown for landing
         }
 
         // Processing the abort messages
@@ -694,13 +696,14 @@ class LandingActionServer : public rclcpp::Node
                     }
 
                     if(msg->pose.position.z >= landing_high_limit + vertical_error) 
-                        landing_ind = 0;                                                        // Position of the drone is more than landing_high_limit, changing state of landing
-                    else if(landing_ind == 0 && msg->pose.position.z <= landing_high_limit)     // If position of the drone is in axe z less of same as Landing and value of landing_ind is 0, action land can be called
+                        landing_ind = 0;                                                                                    // Position of the drone is more than landing_high_limit, changing state of landing
+                    else if(landing_ind == 0 && msg->pose.position.z <= landing_high_limit && timer_land_allowed == 0)      // If position of the drone is in axe z less of same as Landing and value of landing_ind is 0, action land can be called
                     {
                         landing_ind = 1;
                         for(int i = 0; i < 100; i++)
                             RCLCPP_INFO(this->get_logger(), Yellow_b_i "[INFO] Automatic landing DONE, regulation to minimum regulation deviation in axes x and y is still working." Reset);
                             
+                        timer_land_allowed = 1;             // For height verification
                         timer_land->reset();                // Allow to call the action land
                     }
 
@@ -717,6 +720,13 @@ class LandingActionServer : public rclcpp::Node
                         // Log what was published
                         RCLCPP_INFO(this->get_logger(), Green_b "[DATA] " Reset "Input Pose: x = %.2f, y = %.2f -> Velocity: linear.x = %.2f, linear.y = %.2f, linear.z = %.2f",
                                     x, y, twist_msg.linear.x, twist_msg.linear.y, twist_msg.linear.z);
+
+                        //RCLCPP_INFO(this->get_logger(), White_b "[DATA] " Reset "z = %.2f, target_height = %.2f, timer_land_allowed = %.2f", z, target_height, timer_land_allowed);
+                        if(z > target_height && timer_land_allowed == 1)
+                            {
+                                wait_for_act_land_temp = wait_for_act_land;
+                                RCLCPP_INFO(this->get_logger(), Red_b "[INFO] Resetting the timer for calling action Land." Reset);
+                            }
                     }
                 }
             }
@@ -864,7 +874,9 @@ class LandingActionServer : public rclcpp::Node
         float w_orient;
         float target_height;
         float counter_period;
+        float wait_for_act_land_temp;
         float wait_for_act_land;
+        float timer_land_allowed;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_0;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_1;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscriber_2;
