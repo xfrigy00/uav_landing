@@ -653,10 +653,12 @@ class LandingActionServer : public rclcpp::Node
                         else
                             z_landing_vel = -0.1;
                     #else
-                        float safety_level = 1; // For lowering the speed of landing
 
+                        float safety_level = 1.0; // For lowering the speed of landing
                         if (z > level_2 + safety_level)
-                            z_landing_vel = -0.2;	
+                            z_landing_vel = -0.2;
+                        else if (z <= level_2 + safety_level && z > level_2)
+                            z_landing_vel = -0.15;
                         else
                             z_landing_vel = -0.1;
                     #endif	
