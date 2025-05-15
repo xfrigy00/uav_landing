@@ -104,9 +104,13 @@ namespace uav_landing_cpp
                 timer_ = this->create_wall_timer(
                     500ms, std::bind(&LandingActionClient::timer_callback, this));  // If changing this, change also variable timer_period in the code
 
+                this->declare_parameter<std::string>("topic_name_cmd_vel", "/m100_1/aircraft/cmd_vel");
+                std::string topic_name_cmd_vel = this->get_parameter("topic_name_cmd_vel").as_string();
+                RCLCPP_INFO(this->get_logger(), Green_b "Parameter 'topic_name_cmd_vel' set to:" Yellow_b_i " %s" Reset, topic_name_cmd_vel.c_str());
+
                 // Create a publisher
                 twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(
-                    "/m100_1/aircraft/cmd_vel", 10
+                    topic_name_cmd_vel, 10
                 );
 
                 timer_period = 0.5;          // Timer period in seconds

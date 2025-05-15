@@ -67,6 +67,14 @@ class LandingActionServer : public rclcpp::Node
                 std::bind(&LandingActionServer::handle_goal, this, _1, _2),
                 std::bind(&LandingActionServer::handle_cancel, this, _1),
                 std::bind(&LandingActionServer::handle_accepted, this, _1));
+            
+            this->declare_parameter<std::string>("topic_name_cmd_vel", "/m100_1/aircraft/cmd_vel");
+            std::string topic_name_cmd_vel = this->get_parameter("topic_name_cmd_vel").as_string();
+            RCLCPP_INFO(this->get_logger(), Green_b "Parameter 'topic_name_cmd_vel' set to:" Yellow_b_i " %s" Reset, topic_name_cmd_vel.c_str());
+
+            this->declare_parameter<std::string>("topic_name_land", "/m100_1/aircraft/land");
+            std::string topic_name_land = this->get_parameter("topic_name_land").as_string();
+            RCLCPP_INFO(this->get_logger(), Green_b "Parameter 'topic_name_land' set to:" Yellow_b_i " %s" Reset, topic_name_land.c_str());
 
             // Create subscribers of pose 
             pose_subscriber_0 = this->create_subscription<geometry_msgs::msg::PoseStamped>( // Subsrciber of pose from detector for cascade small marker
@@ -101,7 +109,7 @@ class LandingActionServer : public rclcpp::Node
 
             // Create a publisher
             twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>( // Velocity publisher
-                "/m100_1/aircraft/cmd_vel", 10
+                topic_name_cmd_vel, 10
             );
 
             // Create publishers
@@ -129,7 +137,7 @@ class LandingActionServer : public rclcpp::Node
             timer_land->cancel(); // Cancel the timer at the beginning
             timer_land_allowed = 0;
 
-            land_client_ = this->create_client<std_srvs::srv::Trigger>("/m100_1/aircraft/land"); // Client for calling the action land
+            land_client_ = this->create_client<std_srvs::srv::Trigger>(topic_name_land); // Client for calling the action land
             wait_for_act_land = 3.0;
             wait_for_act_land_temp = wait_for_act_land;                    // Waiting before calling the action land [s]
             counter_period = 0.05;                      // Period of timer for landing [s]

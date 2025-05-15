@@ -12,6 +12,8 @@ windows:
         - ros2 topic echo /aruco_single_1/pose_1
         - ros2 topic echo /aruco_single_2/pose_2 #
         #- ros2 run aruco_ros camera_info_publisher
-        - ros2 run uav_landing_cpp landing_action_server #
-        - ros2 run uav_landing_cpp landing_action_client #
+        #- ros2 run uav_landing_cpp landing_action_server --ros-args -p topic_name_cmd_vel:=/x500_1/aircraft/cmd_vel -p topic_name_land:=/x500_1/aircraft/land #
+        #- ros2 run uav_landing_cpp landing_action_client --ros-args -p topic_name_cmd_vel:=/x500_1/aircraft/cmd_vel #
+        - ros2 run uav_landing_cpp landing_action_server --ros-args -p topic_name_cmd_vel:=/m100_1/aircraft/cmd_vel -p topic_name_land:=/m100_1/aircraft/land #
+        - ros2 run uav_landing_cpp landing_action_client --ros-args -p topic_name_cmd_vel:=/m100_1/aircraft/cmd_vel #
         #- ros2 run aruco_ros marker_detector #
