@@ -106,7 +106,7 @@ namespace uav_landing_cpp
 
                 // Create a publisher
                 twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(
-                    "/x500_1/aircraft/cmd_vel", 10
+                    "/m100_1/aircraft/cmd_vel", 10
                 );
 
                 timer_period = 0.5;          // Timer period in seconds

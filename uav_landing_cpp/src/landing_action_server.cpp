@@ -101,7 +101,7 @@ class LandingActionServer : public rclcpp::Node
 
             // Create a publisher
             twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>( // Velocity publisher
-                "/x500_1/aircraft/cmd_vel", 10
+                "/m100_1/aircraft/cmd_vel", 10
             );
 
             // Create publishers
@@ -129,7 +129,7 @@ class LandingActionServer : public rclcpp::Node
             timer_land->cancel(); // Cancel the timer at the beginning
             timer_land_allowed = 0;
 
-            land_client_ = this->create_client<std_srvs::srv::Trigger>("/x500_1/aircraft/land"); // Client for calling the action land
+            land_client_ = this->create_client<std_srvs::srv::Trigger>("/m100_1/aircraft/land"); // Client for calling the action land
             wait_for_act_land = 3.0;
             wait_for_act_land_temp = wait_for_act_land;                    // Waiting before calling the action land [s]
             counter_period = 0.05;                      // Period of timer for landing [s]
