@@ -517,7 +517,7 @@ class LandingActionServer : public rclcpp::Node
                     float c = w_orient * w_orient + x_orient * x_orient - y_orient * y_orient - z_orient * z_orient;
                     float yaw_rad = std::atan2(s, c); // yaw (z-axis rotation)
                     float yaw_deg = yaw_rad * 180.0 / M_PI;
-                    float angle_rot = yaw_deg + 360; // Angle of rotation in z axe
+                    float angle_rot = yaw_deg; // Angle of rotation in z axe
                     //RCLCPP_INFO(this->get_logger(), "Yaw (deg), angle_rot = %.2f", angle_rot);
 
                     float temp_hor_x = horizontal_dev_x; // Temporary variable for rotation
