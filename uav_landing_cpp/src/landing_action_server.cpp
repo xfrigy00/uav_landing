@@ -614,7 +614,7 @@ class LandingActionServer : public rclcpp::Node
                             desired_vel_x = velocity_x;
 
                         timer_ramp_x->reset(); // Reset the timer for ramping
-                        RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Ramp x STARTED." Reset);
+                        RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Ramp x STARTED. desired_vel_x = %.2f" Reset, desired_vel_x);
                     }
                     
                     //  Taking velocity from timer
@@ -634,7 +634,7 @@ class LandingActionServer : public rclcpp::Node
                             desired_vel_y = velocity_y;
 
                         timer_ramp_y->reset(); // Reset the timer for ramping
-                        RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Ramp y STARTED." Reset);
+                        RCLCPP_INFO(this->get_logger(), Green_b "[INFO] Ramp y STARTED. desired_vel_y = %.2f" Reset, desired_vel_y);
                     }
                     
                     //  Taking velocity from timer
